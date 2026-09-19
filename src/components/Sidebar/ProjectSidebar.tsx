@@ -38,10 +38,10 @@ export function ProjectSidebar() {
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2 pt-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Projets</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Projects</span>
         <button
-          onClick={() => createProject('Nouveau projet')}
-          title="Nouveau projet"
+          onClick={() => createProject('New project')}
+          title="New project"
           className="flex h-5 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700"
         >
           +
@@ -101,7 +101,7 @@ export function ProjectSidebar() {
                     className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
                     onClick={() => startEdit(p.id, p.name)}
                   >
-                    Renommer
+                    Rename
                   </button>
                   <button
                     className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
@@ -110,7 +110,7 @@ export function ProjectSidebar() {
                       setMenuId(null);
                     }}
                   >
-                    Dupliquer
+                    Duplicate
                   </button>
                   <div className="my-1 border-t border-gray-100" />
                   <div className="flex items-center gap-1.5 px-3 py-1.5">
@@ -130,11 +130,11 @@ export function ProjectSidebar() {
                   <button
                     className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
                     onClick={() => {
-                      if (confirm(`Supprimer le projet "${p.name}" ?`)) deleteProject(p.id);
+                      if (confirm(`Delete project "${p.name}"?`)) deleteProject(p.id);
                       setMenuId(null);
                     }}
                   >
-                    Supprimer
+                    Delete
                   </button>
                 </div>
               )}
@@ -143,7 +143,7 @@ export function ProjectSidebar() {
         })}
 
         {projects.length === 0 && (
-          <p className="px-2 py-4 text-center text-sm text-gray-400">Aucun projet. Créez-en un !</p>
+          <p className="px-2 py-4 text-center text-sm text-gray-400">No projects yet. Create one!</p>
         )}
       </div>
     </div>

@@ -27,13 +27,13 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
           style={{ height: HEADER_HEIGHT }}
         >
           <HeaderCell width={TABLE_COL_WIDTHS.name} align="left" className="pl-3">
-            Nom de la tâche
+            Task name
           </HeaderCell>
-          <HeaderCell width={TABLE_COL_WIDTHS.start}>Début</HeaderCell>
-          <HeaderCell width={TABLE_COL_WIDTHS.end}>Fin</HeaderCell>
-          <HeaderCell width={TABLE_COL_WIDTHS.duration}>Durée</HeaderCell>
-          <HeaderCell width={TABLE_COL_WIDTHS.progress}>Progrès</HeaderCell>
-          <HeaderCell width={TABLE_COL_WIDTHS.assignee}>Assigné</HeaderCell>
+          <HeaderCell width={TABLE_COL_WIDTHS.start}>Start</HeaderCell>
+          <HeaderCell width={TABLE_COL_WIDTHS.end}>End</HeaderCell>
+          <HeaderCell width={TABLE_COL_WIDTHS.duration}>Duration</HeaderCell>
+          <HeaderCell width={TABLE_COL_WIDTHS.progress}>Progress</HeaderCell>
+          <HeaderCell width={TABLE_COL_WIDTHS.assignee}>Assignee</HeaderCell>
         </div>
 
         {rows.map(({ task, depth, hasChildren }) => (
@@ -45,7 +45,7 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
           className="flex w-full items-center gap-2 px-3 text-left text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-600"
           style={{ height: ROW_HEIGHT }}
         >
-          <span className="text-base leading-none">+</span> Ajouter une tâche
+          <span className="text-base leading-none">+</span> Add task
         </button>
       </div>
     </div>

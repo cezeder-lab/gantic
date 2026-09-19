@@ -34,7 +34,7 @@ function buildSegments(rangeStart: string, totalDays: number, zoom: ZoomLevel, p
     while (cursorDay < totalDays) {
       const cellDate = addDays(rangeStart, cursorDay);
       const d = parseISO(cellDate);
-      const label = zoom === 'day' ? formatHeaderDay(d) : `${d.getDate()} ${formatMonthShort(d)}`;
+      const label = zoom === 'day' ? formatHeaderDay(d) : `${formatMonthShort(d)} ${d.getDate()}`;
       bottom.push({
         key: cellDate,
         label,

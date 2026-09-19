@@ -127,7 +127,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
 
             {todayX >= 0 && todayX <= totalWidth && (
               <div
-                className="absolute top-0 z-10 w-px bg-[#ef5c6e]"
+                className="pointer-events-none absolute top-0 z-10 w-px bg-[#ef5c6e]"
                 style={{ left: todayX, height: totalHeight }}
               >
                 <div className="absolute -left-[3px] -top-1 h-1.5 w-1.5 rounded-full bg-[#ef5c6e]" />

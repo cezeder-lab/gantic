@@ -58,18 +58,18 @@ export function dayWidth(zoom: ZoomLevel): number {
 }
 
 const MONTH_NAMES = [
-  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
-  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 const MONTH_NAMES_FULL = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function formatShortDate(dateStr: string): string {
   const d = parseISO(dateStr);
-  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 
 export function formatHeaderDay(date: Date): string {

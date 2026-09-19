@@ -1,17 +1,19 @@
 # Gantic
 
-Éditeur de diagrammes de Gantt façon Instagantt, avec gestion de plusieurs projets.
+An Instagantt-style Gantt chart editor with support for multiple projects.
 
-## Fonctionnalités
+## Features
 
-- **Multi-projets** : créez, renommez, dupliquez, coloriez et supprimez autant de projets que nécessaire depuis le panneau latéral.
-- **Table de tâches éditable** : nom, dates de début/fin, durée, progression et assigné, avec hiérarchie (phases / sous-tâches), indentation et réordonnancement.
-- **Timeline Gantt interactive** : barres déplaçables et redimensionnables à la souris, drag de la progression, jalons (losanges), barres de synthèse pour les groupes de tâches.
-- **Dépendances** : création de liens entre tâches par glisser-déposer depuis les poignées des barres, affichées sous forme de flèches.
-- **Zoom** Jour / Semaine / Mois avec repère "aujourd'hui" et trame week-end.
-- **Persistance locale** automatique (localStorage) — aucune donnée n'est envoyée à un serveur.
+- **Multiple projects**: create, rename, duplicate, color and delete as many projects as you need from the sidebar.
+- **Editable task table**: name, start/end dates, duration, progress and assignee, with hierarchy (phases/subtasks), indent/outdent and reordering.
+- **Interactive Gantt timeline**: drag to move and resize bars with the mouse, drag the progress handle, milestones (diamonds), summary bars for task groups.
+- **Dependencies**: link tasks by dragging from a bar's handle to another bar; rendered as arrows.
+- **Task details**: click a task to open a side panel with a free-text description and file attachments (documents, spreadsheets, PDFs, images…).
+- **Per-project team**: maintain a member list per project and assign tasks from a dropdown.
+- **Zoom**: Day / Week / Month, with a "today" marker and weekend shading.
+- **Local persistence**: task data is saved automatically to your browser's `localStorage`; file attachments are stored in `IndexedDB`. Nothing is sent to a server.
 
-## Développement
+## Development
 
 ```bash
 npm install

@@ -5,6 +5,15 @@ export interface Project {
   name: string;
   color: string;
   createdAt: number;
+  members: string[];
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  addedAt: number;
 }
 
 export interface Task {
@@ -21,6 +30,8 @@ export interface Task {
   isMilestone: boolean;
   collapsed: boolean;
   dependencies: string[]; // ids of predecessor tasks
+  description: string;
+  attachments: Attachment[];
 }
 
 export const TASK_COLORS = [

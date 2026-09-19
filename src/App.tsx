@@ -3,6 +3,7 @@ import { ProjectSidebar } from './components/Sidebar/ProjectSidebar';
 import { Toolbar } from './components/Toolbar';
 import { TaskTable } from './components/TaskTable/TaskTable';
 import { GanttChart } from './components/Gantt/GanttChart';
+import { TaskDetailPanel } from './components/TaskDetail/TaskDetailPanel';
 import { useGanticStore } from './store/useGanticStore';
 import { computeGanttRange } from './lib/ganttRange';
 import { dayWidth, diffDays, todayISO } from './lib/dates';
@@ -53,10 +54,11 @@ function App() {
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center text-gray-400">
-            Sélectionnez ou créez un projet pour commencer.
+            Select or create a project to get started.
           </div>
         )}
       </div>
+      <TaskDetailPanel />
     </div>
   );
 }

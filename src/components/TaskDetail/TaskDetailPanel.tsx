@@ -1,0 +1,230 @@
+import { useRef, useState } from 'react';
+import { useGanticStore } from '../../store/useGanticStore';
+import { makeId } from '../../lib/id';
+import { saveAttachmentBlob, getAttachmentBlob } from '../../lib/attachmentsDb';
+import { formatShortDate } from '../../lib/dates';
+import type { Attachment } from '../../types';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function iconForMimeType(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return '🖼️';
+  if (mimeType === 'application/pdf') return '📄';
+  if (mimeType.includes('word')) return '📝';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || mimeType === 'text/csv') return '📊';
+  return '📎';
+}
+
+export function TaskDetailPanel() {
+  const detailsTaskId = useGanticStore((s) => s.detailsTaskId);
+  const task = useGanticStore((s) => s.tasks.find((t) => t.id === detailsTaskId));
+  const project = useGanticStore((s) => s.projects.find((p) => p.id === task?.projectId));
+  const closeTaskDetails = useGanticStore((s) => s.closeTaskDetails);
+  const updateTask = useGanticStore((s) => s.updateTask);
+  const addAttachment = useGanticStore((s) => s.addAttachment);
+  const removeAttachment = useGanticStore((s) => s.removeAttachment);
+
+  if (!task) return null;
+
+  return (
+    <TaskDetailPanelContent
+      key={task.id}
+      taskId={task.id}
+      name={task.name}
+      description={task.description}
+      start={task.start}
+      end={task.end}
+      assignee={task.assignee}
+      color={task.color}
+      attachments={task.attachments}
+      projectName={project?.name ?? ''}
+      onClose={closeTaskDetails}
+      onUpdate={(patch) => updateTask(task.id, patch)}
+      onAddAttachment={(a) => addAttachment(task.id, a)}
+      onRemoveAttachment={(id) => removeAttachment(task.id, id)}
+    />
+  );
+}
+
+interface ContentProps {
+  taskId: string;
+  name: string;
+  description: string;
+  start: string;
+  end: string;
+  assignee: string;
+  color: string;
+  attachments: Attachment[];
+  projectName: string;
+  onClose: () => void;
+  onUpdate: (patch: { name?: string; description?: string }) => void;
+  onAddAttachment: (a: Attachment) => void;
+  onRemoveAttachment: (id: string) => void;
+}
+
+function TaskDetailPanelContent({
+  name: initialName,
+  description: initialDescription,
+  start,
+  end,
+  assignee,
+  color,
+  attachments,
+  projectName,
+  onClose,
+  onUpdate,
+  onAddAttachment,
+  onRemoveAttachment,
+}: ContentProps) {
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(fileList)) {
+        const id = makeId();
+        await saveAttachmentBlob(id, file);
+        onAddAttachment({
+          id,
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          addedAt: Date.now(),
+        });
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleDownload(attachment: Attachment) {
+    const blob = await getAttachmentBlob(attachment.id);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = attachment.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col border-l border-gray-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {projectName}
+          </span>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="mb-4 flex items-start gap-2">
+            <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => onUpdate({ name })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+              className="min-w-0 flex-1 rounded px-1 py-1 text-lg font-semibold text-gray-800 outline-none focus:bg-gray-50 focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
+
+          <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 pl-5 text-sm text-gray-500">
+            <span>
+              {formatShortDate(start)} → {formatShortDate(end)}
+            </span>
+            <span>{assignee || 'Unassigned'}</span>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Description
+            </h3>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => onUpdate({ description })}
+              placeholder="Add notes, context or acceptance criteria…"
+              rows={6}
+              className="w-full resize-none rounded-md border border-gray-200 p-3 text-sm text-gray-700 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Attachments {attachments.length > 0 && `(${attachments.length})`}
+              </h3>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {uploading ? 'Uploading…' : '+ Add file'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
+
+            {attachments.length === 0 ? (
+              <p className="rounded-md border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+                No files attached yet
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {attachments.map((a) => (
+                  <li
+                    key={a.id}
+                    className="group flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-2 hover:bg-gray-50"
+                  >
+                    <span className="text-lg leading-none">{iconForMimeType(a.mimeType)}</span>
+                    <button
+                      onClick={() => handleDownload(a)}
+                      className="min-w-0 flex-1 truncate text-left text-sm text-gray-700 hover:underline"
+                      title="Download"
+                    >
+                      {a.name}
+                    </button>
+                    <span className="shrink-0 text-xs text-gray-400">{formatFileSize(a.size)}</span>
+                    <button
+                      onClick={() => onRemoveAttachment(a.id)}
+                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 group-hover:flex"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

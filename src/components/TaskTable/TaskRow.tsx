@@ -21,6 +21,8 @@ export function TaskRow({ task, depth, hasChildren }: Props) {
   const addTask = useGanticStore((s) => s.addTask);
   const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
+  const openTaskDetails = useGanticStore((s) => s.openTaskDetails);
+  const members = useGanticStore((s) => s.projects.find((p) => p.id === task.projectId)?.members ?? []);
 
   const [name, setName] = useState(task.name);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
@@ -66,7 +68,7 @@ export function TaskRow({ task, depth, hasChildren }: Props) {
             }}
             className="block h-2.5 w-2.5 rounded-full ring-offset-1 hover:ring-2 hover:ring-gray-300"
             style={{ backgroundColor: task.color }}
-            title="Changer la couleur"
+            title="Change color"
           />
           {colorPickerOpen && (
             <>
@@ -108,16 +110,19 @@ export function TaskRow({ task, depth, hasChildren }: Props) {
         />
 
         <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-          <IconButton title="Ajouter une sous-tâche" onClick={() => addTask({ parentId: task.id })}>
+          <IconButton title="Open details" onClick={() => openTaskDetails(task.id)}>
+            ⤢
+          </IconButton>
+          <IconButton title="Add subtask" onClick={() => addTask({ parentId: task.id })}>
             +
           </IconButton>
-          <IconButton title="Indenter" onClick={() => indentTask(task.id)}>
+          <IconButton title="Indent" onClick={() => indentTask(task.id)}>
             →
           </IconButton>
-          <IconButton title="Désindenter" onClick={() => outdentTask(task.id)} disabled={!task.parentId}>
+          <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={!task.parentId}>
             ←
           </IconButton>
-          <IconButton title="Supprimer" onClick={() => deleteTask(task.id)}>
+          <IconButton title="Delete" onClick={() => deleteTask(task.id)}>
             ✕
           </IconButton>
         </div>
@@ -187,13 +192,22 @@ export function TaskRow({ task, depth, hasChildren }: Props) {
       </Cell>
 
       <Cell width={TABLE_COL_WIDTHS.assignee}>
-        <input
+        <select
           value={task.assignee}
-          placeholder="—"
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
-          className="w-full rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-        />
+          className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+        >
+          <option value="">—</option>
+          {members.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+          {task.assignee && !members.includes(task.assignee) && (
+            <option value={task.assignee}>{task.assignee}</option>
+          )}
+        </select>
       </Cell>
     </div>
   );

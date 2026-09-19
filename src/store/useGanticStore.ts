@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Project, Task, ZoomLevel } from '../types';
+import type { Attachment, Project, Task, ZoomLevel } from '../types';
 import { PROJECT_COLORS, TASK_COLORS } from '../types';
 import { makeId } from '../lib/id';
 import { addDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
+import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 
 interface GanticState {
   projects: Project[];
@@ -12,6 +13,7 @@ interface GanticState {
   activeProjectId: string | null;
   zoom: ZoomLevel;
   selectedTaskId: string | null;
+  detailsTaskId: string | null;
 
   // Projects
   createProject: (name: string) => string;
@@ -20,6 +22,8 @@ interface GanticState {
   duplicateProject: (id: string) => string;
   setActiveProject: (id: string) => void;
   setProjectColor: (id: string, color: string) => void;
+  addProjectMember: (projectId: string, name: string) => void;
+  removeProjectMember: (projectId: string, name: string) => void;
 
   // Tasks
   addTask: (opts: { parentId?: string | null; afterId?: string; name?: string }) => string;
@@ -31,9 +35,13 @@ interface GanticState {
   moveTaskVertical: (id: string, direction: 'up' | 'down') => void;
   addDependency: (taskId: string, dependsOnId: string) => void;
   removeDependency: (taskId: string, dependsOnId: string) => void;
+  addAttachment: (taskId: string, attachment: Attachment) => void;
+  removeAttachment: (taskId: string, attachmentId: string) => void;
 
   setZoom: (zoom: ZoomLevel) => void;
   setSelectedTask: (id: string | null) => void;
+  openTaskDetails: (id: string) => void;
+  closeTaskDetails: () => void;
 }
 
 function seedProject(): { project: Project; tasks: Task[] } {
@@ -60,31 +68,39 @@ function seedProject(): { project: Project; tasks: Task[] } {
     isMilestone: false,
     collapsed: false,
     dependencies: [],
+    description: '',
+    attachments: [],
     ...extra,
   });
 
-  const phase1 = mk('Phase 1 — Cadrage', 0, 6, null, 0);
-  const t1 = mk('Recueil des besoins', 0, 2, phase1.id, 0, { progress: 100, assignee: 'Marie' });
-  const t2 = mk('Rédaction du cahier des charges', 2, 3, phase1.id, 1, {
+  const phase1 = mk('Phase 1 — Scoping', 0, 6, null, 0);
+  const t1 = mk('Requirements gathering', 0, 2, phase1.id, 0, { progress: 100, assignee: 'Mary' });
+  const t2 = mk('Write specification', 2, 3, phase1.id, 1, {
     progress: 60,
-    assignee: 'Marie',
+    assignee: 'Mary',
     dependencies: [t1.id],
   });
-  const t3 = mk('Validation client', 5, 1, phase1.id, 2, {
+  const t3 = mk('Client sign-off', 5, 1, phase1.id, 2, {
     progress: 0,
-    assignee: 'Julien',
+    assignee: 'Julian',
     dependencies: [t2.id],
   });
 
-  const phase2 = mk('Phase 2 — Réalisation', 6, 12, null, 1);
-  const t4 = mk('Maquettes UI', 6, 4, phase2.id, 0, { assignee: 'Sophie', dependencies: [t3.id] });
-  const t5 = mk('Développement', 10, 6, phase2.id, 1, { assignee: 'Julien', dependencies: [t4.id] });
-  const t6 = mk('Tests & recette', 16, 2, phase2.id, 2, { assignee: 'Marie', dependencies: [t5.id] });
+  const phase2 = mk('Phase 2 — Delivery', 6, 12, null, 1);
+  const t4 = mk('UI mockups', 6, 4, phase2.id, 0, { assignee: 'Sophie', dependencies: [t3.id] });
+  const t5 = mk('Development', 10, 6, phase2.id, 1, { assignee: 'Julian', dependencies: [t4.id] });
+  const t6 = mk('Testing & QA', 16, 2, phase2.id, 2, { assignee: 'Mary', dependencies: [t5.id] });
 
-  const milestone = mk('Lancement', 18, 0, null, 2, { isMilestone: true, color: '#ef5c6e' });
+  const milestone = mk('Launch', 18, 0, null, 2, { isMilestone: true, color: '#ef5c6e' });
 
   return {
-    project: { id: projectId, name: 'Mon premier projet', color: PROJECT_COLORS[0], createdAt: Date.now() },
+    project: {
+      id: projectId,
+      name: 'My first project',
+      color: PROJECT_COLORS[0],
+      createdAt: Date.now(),
+      members: ['Mary', 'Julian', 'Sophie'],
+    },
     tasks: [phase1, t1, t2, t3, phase2, t4, t5, t6, milestone],
   };
 }
@@ -99,14 +115,16 @@ export const useGanticStore = create<GanticState>()(
       activeProjectId: seeded.project.id,
       zoom: 'week',
       selectedTaskId: null,
+      detailsTaskId: null,
 
       createProject: (name) => {
         const id = makeId();
         const project: Project = {
           id,
-          name: name.trim() || 'Projet sans titre',
+          name: name.trim() || 'Untitled project',
           color: PROJECT_COLORS[get().projects.length % PROJECT_COLORS.length],
           createdAt: Date.now(),
+          members: [],
         };
         set((s) => ({ projects: [...s.projects, project], activeProjectId: id }));
         return id;
@@ -120,6 +138,9 @@ export const useGanticStore = create<GanticState>()(
 
       deleteProject: (id) => {
         set((s) => {
+          const tasksToRemove = s.tasks.filter((t) => t.projectId === id);
+          deleteAttachmentBlobs(tasksToRemove.flatMap((t) => t.attachments.map((a) => a.id)));
+
           const projects = s.projects.filter((p) => p.id !== id);
           const tasks = s.tasks.filter((t) => t.projectId !== id);
           const activeProjectId =
@@ -142,12 +163,16 @@ export const useGanticStore = create<GanticState>()(
           projectId: newProjectId,
           parentId: t.parentId ? (idMap.get(t.parentId) ?? null) : null,
           dependencies: t.dependencies.map((d) => idMap.get(d)).filter((d): d is string => !!d),
+          // Attachment blobs live in IndexedDB keyed by attachment id — duplicated tasks
+          // intentionally start without attachments rather than sharing/copying blobs.
+          attachments: [],
         }));
         const newProject: Project = {
           id: newProjectId,
-          name: `${source.name} (copie)`,
+          name: `${source.name} (copy)`,
           color: source.color,
           createdAt: Date.now(),
+          members: [...source.members],
         };
         set((s) => ({
           projects: [...s.projects, newProject],
@@ -163,7 +188,27 @@ export const useGanticStore = create<GanticState>()(
         set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, color } : p)) }));
       },
 
-      addTask: ({ parentId = null, afterId, name = 'Nouvelle tâche' }) => {
+      addProjectMember: (projectId, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId && !p.members.includes(trimmed)
+              ? { ...p, members: [...p.members, trimmed] }
+              : p,
+          ),
+        }));
+      },
+
+      removeProjectMember: (projectId, name) => {
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId ? { ...p, members: p.members.filter((m) => m !== name) } : p,
+          ),
+        }));
+      },
+
+      addTask: ({ parentId = null, afterId, name = 'New task' }) => {
         const state = get();
         const projectId = state.activeProjectId;
         if (!projectId) return '';
@@ -197,6 +242,8 @@ export const useGanticStore = create<GanticState>()(
           isMilestone: false,
           collapsed: false,
           dependencies: [],
+          description: '',
+          attachments: [],
         };
         set((s) => ({ tasks: [...s.tasks, task], selectedTaskId: id }));
         return id;
@@ -216,12 +263,16 @@ export const useGanticStore = create<GanticState>()(
       deleteTask: (id) => {
         set((s) => {
           const idsToRemove = new Set([id, ...getDescendantIds(s.tasks, id)]);
+          const removedTasks = s.tasks.filter((t) => idsToRemove.has(t.id));
+          deleteAttachmentBlobs(removedTasks.flatMap((t) => t.attachments.map((a) => a.id)));
+
           const tasks = s.tasks
             .filter((t) => !idsToRemove.has(t.id))
             .map((t) => ({ ...t, dependencies: t.dependencies.filter((d) => !idsToRemove.has(d)) }));
           return {
             tasks,
             selectedTaskId: s.selectedTaskId && idsToRemove.has(s.selectedTaskId) ? null : s.selectedTaskId,
+            detailsTaskId: s.detailsTaskId && idsToRemove.has(s.detailsTaskId) ? null : s.detailsTaskId,
           };
         });
       },
@@ -304,9 +355,49 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
+      addAttachment: (taskId, attachment) => {
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId ? { ...t, attachments: [...t.attachments, attachment] } : t,
+          ),
+        }));
+      },
+
+      removeAttachment: (taskId, attachmentId) => {
+        deleteAttachmentBlobs([attachmentId]);
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, attachments: t.attachments.filter((a) => a.id !== attachmentId) }
+              : t,
+          ),
+        }));
+      },
+
       setZoom: (zoom) => set({ zoom }),
       setSelectedTask: (id) => set({ selectedTaskId: id }),
+      openTaskDetails: (id) => set({ detailsTaskId: id, selectedTaskId: id }),
+      closeTaskDetails: () => set({ detailsTaskId: null }),
     }),
-    { name: 'gantic-storage' },
+    {
+      name: 'gantic-storage',
+      version: 1,
+      // Backfill fields added after the initial release so data saved by earlier
+      // versions of the app (no `members`/`description`/`attachments`) still loads.
+      migrate: (persistedState) => {
+        const state = persistedState as
+          | (Omit<Partial<GanticState>, 'projects' | 'tasks'> & {
+              projects?: Partial<Project>[];
+              tasks?: Partial<Task>[];
+            })
+          | undefined;
+        if (!state) return state;
+        return {
+          ...state,
+          projects: (state.projects ?? []).map((p) => ({ members: [], ...p })),
+          tasks: (state.tasks ?? []).map((t) => ({ description: '', attachments: [], ...t })),
+        };
+      },
+    },
   ),
 );
