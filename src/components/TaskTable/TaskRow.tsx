@@ -1,0 +1,234 @@
+import { useState } from 'react';
+import clsx from 'clsx';
+import { useGanticStore } from '../../store/useGanticStore';
+import type { Task } from '../../types';
+import { TASK_COLORS } from '../../types';
+import { TABLE_COL_WIDTHS, ROW_HEIGHT } from '../../lib/constants';
+import { addDays, diffDays } from '../../lib/dates';
+
+interface Props {
+  task: Task;
+  depth: number;
+  hasChildren: boolean;
+}
+
+export function TaskRow({ task, depth, hasChildren }: Props) {
+  const updateTask = useGanticStore((s) => s.updateTask);
+  const deleteTask = useGanticStore((s) => s.deleteTask);
+  const toggleCollapse = useGanticStore((s) => s.toggleCollapse);
+  const indentTask = useGanticStore((s) => s.indentTask);
+  const outdentTask = useGanticStore((s) => s.outdentTask);
+  const addTask = useGanticStore((s) => s.addTask);
+  const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
+  const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
+
+  const [name, setName] = useState(task.name);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const isSelected = selectedTaskId === task.id;
+  const duration = diffDays(task.start, task.end);
+
+  return (
+    <div
+      data-row-task-id={task.id}
+      className={clsx(
+        'group flex items-center border-b border-gray-100 text-sm',
+        isSelected ? 'bg-[#eef2ff]' : 'hover:bg-gray-50',
+      )}
+      style={{ height: ROW_HEIGHT }}
+      onClick={() => setSelectedTask(task.id)}
+    >
+      <div
+        className="flex shrink-0 items-center gap-1 overflow-hidden pl-1"
+        style={{ width: TABLE_COL_WIDTHS.name, paddingLeft: 6 + depth * 18 }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleCollapse(task.id);
+          }}
+          className={clsx(
+            'flex h-4 w-4 shrink-0 items-center justify-center text-gray-400',
+            !hasChildren && 'invisible',
+          )}
+        >
+          <svg
+            viewBox="0 0 8 8"
+            className={clsx('h-2.5 w-2.5 fill-current transition-transform', !task.collapsed && 'rotate-90')}
+          >
+            <path d="M0 0L8 4L0 8Z" />
+          </svg>
+        </button>
+        <span className="relative shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setColorPickerOpen((v) => !v);
+            }}
+            className="block h-2.5 w-2.5 rounded-full ring-offset-1 hover:ring-2 hover:ring-gray-300"
+            style={{ backgroundColor: task.color }}
+            title="Changer la couleur"
+          />
+          {colorPickerOpen && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setColorPickerOpen(false)} />
+              <div
+                className="absolute left-0 top-5 z-30 flex w-32 flex-wrap gap-1.5 rounded-md border border-gray-200 bg-white p-2 shadow-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {TASK_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={clsx(
+                      'h-4 w-4 rounded-full border-2',
+                      task.color === c ? 'border-gray-500' : 'border-transparent',
+                    )}
+                    style={{ backgroundColor: c }}
+                    onClick={() => {
+                      updateTask(task.id, { color: c });
+                      setColorPickerOpen(false);
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => updateTask(task.id, { name })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className={clsx(
+            'min-w-0 flex-1 truncate bg-transparent px-1 py-0.5 text-sm outline-none focus:rounded focus:bg-white focus:ring-1 focus:ring-blue-300',
+            hasChildren && 'font-semibold text-gray-800',
+          )}
+        />
+
+        <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+          <IconButton title="Ajouter une sous-tâche" onClick={() => addTask({ parentId: task.id })}>
+            +
+          </IconButton>
+          <IconButton title="Indenter" onClick={() => indentTask(task.id)}>
+            →
+          </IconButton>
+          <IconButton title="Désindenter" onClick={() => outdentTask(task.id)} disabled={!task.parentId}>
+            ←
+          </IconButton>
+          <IconButton title="Supprimer" onClick={() => deleteTask(task.id)}>
+            ✕
+          </IconButton>
+        </div>
+      </div>
+
+      <Cell width={TABLE_COL_WIDTHS.start}>
+        <input
+          type="date"
+          value={task.start}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const newStart = e.target.value;
+            const newEnd = newStart > task.end ? newStart : task.end;
+            updateTask(task.id, { start: newStart, end: newEnd });
+          }}
+          className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+        />
+      </Cell>
+
+      <Cell width={TABLE_COL_WIDTHS.end}>
+        <input
+          type="date"
+          value={task.end}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const newEnd = e.target.value;
+            updateTask(task.id, { end: newEnd < task.start ? task.start : newEnd });
+          }}
+          className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+        />
+      </Cell>
+
+      <Cell width={TABLE_COL_WIDTHS.duration}>
+        <input
+          type="number"
+          min={0}
+          value={duration}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const d = Math.max(0, Number(e.target.value) || 0);
+            updateTask(task.id, { end: addDays(task.start, d) });
+          }}
+          className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+        />
+      </Cell>
+
+      <Cell width={TABLE_COL_WIDTHS.progress}>
+        <div
+          className="flex w-[84px] items-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full rounded-full bg-[#4f7cff]" style={{ width: `${task.progress}%` }} />
+          </div>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={task.progress}
+            onChange={(e) =>
+              updateTask(task.id, { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
+            }
+            className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300"
+          />
+          <span className="shrink-0 text-[10px] text-gray-400">%</span>
+        </div>
+      </Cell>
+
+      <Cell width={TABLE_COL_WIDTHS.assignee}>
+        <input
+          value={task.assignee}
+          placeholder="—"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
+          className="w-full rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+        />
+      </Cell>
+    </div>
+  );
+}
+
+function Cell({ width, children }: { width: number; children: React.ReactNode }) {
+  return (
+    <div className="flex shrink-0 items-center justify-center" style={{ width }}>
+      {children}
+    </div>
+  );
+}
+
+function IconButton({
+  children,
+  onClick,
+  title,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      title={title}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex h-5 w-5 items-center justify-center rounded text-[10px] text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-30"
+    >
+      {children}
+    </button>
+  );
+}
