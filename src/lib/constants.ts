@@ -9,6 +9,7 @@ export const TABLE_COL_WIDTHS = {
   duration: 64,
   progress: 100,
   assignee: 110,
+  status: 116,
 };
 
 export const TABLE_WIDTH =
@@ -18,4 +19,5 @@ export const TABLE_WIDTH =
   TABLE_COL_WIDTHS.duration +
   TABLE_COL_WIDTHS.progress +
   TABLE_COL_WIDTHS.assignee +
+  TABLE_COL_WIDTHS.status +
   40; // grip + gutter

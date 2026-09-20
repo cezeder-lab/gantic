@@ -1,4 +1,4 @@
-import type { Task } from '../types';
+import type { Task, TaskSortMode } from '../types';
 
 export interface FlatTask {
   task: Task;
@@ -12,11 +12,16 @@ function childrenOf(tasks: Task[], parentId: string | null, projectId: string): 
     .sort((a, b) => a.order - b.order);
 }
 
+function sortSiblings(siblings: Task[], sortMode: TaskSortMode): Task[] {
+  if (sortMode === 'manual') return siblings;
+  return [...siblings].sort((a, b) => a.end.localeCompare(b.end) || a.order - b.order);
+}
+
 /** Depth-first flattened list of ALL tasks in a project, ignoring collapse state. */
-export function flattenAll(tasks: Task[], projectId: string): FlatTask[] {
+export function flattenAll(tasks: Task[], projectId: string, sortMode: TaskSortMode = 'manual'): FlatTask[] {
   const result: FlatTask[] = [];
   const visit = (parentId: string | null, depth: number) => {
-    const kids = childrenOf(tasks, parentId, projectId);
+    const kids = sortSiblings(childrenOf(tasks, parentId, projectId), sortMode);
     for (const k of kids) {
       const hasChildren = childrenOf(tasks, k.id, projectId).length > 0;
       result.push({ task: k, depth, hasChildren });
@@ -28,8 +33,8 @@ export function flattenAll(tasks: Task[], projectId: string): FlatTask[] {
 }
 
 /** Depth-first flattened list, skipping descendants of collapsed tasks. */
-export function flattenVisible(tasks: Task[], projectId: string): FlatTask[] {
-  const all = flattenAll(tasks, projectId);
+export function flattenVisible(tasks: Task[], projectId: string, sortMode: TaskSortMode = 'manual'): FlatTask[] {
+  const all = flattenAll(tasks, projectId, sortMode);
   const collapsedIds = new Set(all.filter((f) => f.task.collapsed).map((f) => f.task.id));
   if (collapsedIds.size === 0) return all;
 
@@ -43,6 +48,44 @@ export function flattenVisible(tasks: Task[], projectId: string): FlatTask[] {
     return false;
   };
   return all.filter((f) => !isHiddenByAncestor(f.task));
+}
+
+/**
+ * Filters a flattened, already-ordered task list by a search query (name or
+ * assignee, case-insensitive substring). A task is kept if it matches, if any
+ * ancestor matches (keeps context), or if any descendant matches (so a phase
+ * whose child matches stays visible).
+ */
+export function filterFlatTasks(flat: FlatTask[], query: string): FlatTask[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return flat;
+
+  const matches = (t: Task) => t.name.toLowerCase().includes(q) || t.assignee.toLowerCase().includes(q);
+  const byId = new Map(flat.map((f) => [f.task.id, f]));
+
+  const matchesSelfOrAncestor = (f: FlatTask): boolean => {
+    if (matches(f.task)) return true;
+    let parentId = f.task.parentId;
+    while (parentId) {
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      if (matches(parent.task)) return true;
+      parentId = parent.task.parentId;
+    }
+    return false;
+  };
+
+  const idsWithMatchingDescendant = new Set<string>();
+  for (const f of flat) {
+    if (!matches(f.task)) continue;
+    let parentId = f.task.parentId;
+    while (parentId) {
+      idsWithMatchingDescendant.add(parentId);
+      parentId = byId.get(parentId)?.task.parentId ?? null;
+    }
+  }
+
+  return flat.filter((f) => matchesSelfOrAncestor(f) || idsWithMatchingDescendant.has(f.task.id));
 }
 
 export function getDescendantIds(tasks: Task[], taskId: string): string[] {

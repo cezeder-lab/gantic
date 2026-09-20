@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useGanticStore } from '../store/useGanticStore';
-import type { ZoomLevel } from '../types';
+import type { TaskSortMode, ZoomLevel } from '../types';
+import { exportProjectToJSON, downloadProjectJSON, parseProjectImport } from '../lib/projectIO';
 
 const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
   { value: 'day', label: 'Day' },
@@ -9,68 +10,256 @@ const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
   { value: 'month', label: 'Month' },
 ];
 
-export function Toolbar({ onScrollToday }: { onScrollToday: () => void }) {
+const SORT_OPTIONS: { value: TaskSortMode; label: string }[] = [
+  { value: 'manual', label: 'Original order' },
+  { value: 'dueDate', label: 'Due date' },
+];
+
+export function Toolbar({
+  onScrollToday,
+  onExportImage,
+}: {
+  onScrollToday: () => void;
+  onExportImage: () => void;
+}) {
   const project = useGanticStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
+  const tasks = useGanticStore((s) => s.tasks);
   const zoom = useGanticStore((s) => s.zoom);
   const setZoom = useGanticStore((s) => s.setZoom);
   const addTask = useGanticStore((s) => s.addTask);
+  const taskSort = useGanticStore((s) => s.taskSort);
+  const setTaskSort = useGanticStore((s) => s.setTaskSort);
+  const taskFilterQuery = useGanticStore((s) => s.taskFilterQuery);
+  const setTaskFilterQuery = useGanticStore((s) => s.setTaskFilterQuery);
+  const showCriticalPath = useGanticStore((s) => s.showCriticalPath);
+  const toggleCriticalPath = useGanticStore((s) => s.toggleCriticalPath);
+  const setSettingsOpen = useGanticStore((s) => s.setSettingsOpen);
+  const past = useGanticStore((s) => s.past);
+  const future = useGanticStore((s) => s.future);
+  const undo = useGanticStore((s) => s.undo);
+  const redo = useGanticStore((s) => s.redo);
+  const importProject = useGanticStore((s) => s.importProject);
+
   const [teamOpen, setTeamOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleExportJSON() {
+    if (!project) return;
+    const json = await exportProjectToJSON(
+      project,
+      tasks.filter((t) => t.projectId === project.id),
+    );
+    downloadProjectJSON(project, json);
+    setActionsOpen(false);
+  }
+
+  async function handleImportFile(file: File) {
+    try {
+      const text = await file.text();
+      const { project: importedProject, tasks: importedTasks } = await parseProjectImport(text);
+      importProject(importedProject, importedTasks);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not import this file.');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+      setActionsOpen(false);
+    }
+  }
 
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
-      <div className="flex items-center gap-2 min-w-0">
-        {project && (
-          <>
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
-            <h1 className="truncate text-base font-semibold text-gray-800">{project.name}</h1>
-          </>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {project && (
-          <div className="relative">
-            <button
-              onClick={() => setTeamOpen((v) => !v)}
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-            >
-              Team {project.members.length > 0 && `(${project.members.length})`}
-            </button>
-            {teamOpen && <TeamPopover projectId={project.id} members={project.members} onClose={() => setTeamOpen(false)} />}
-          </div>
-        )}
-
-        <button
-          onClick={onScrollToday}
-          className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-        >
-          Today
-        </button>
-
-        <div className="flex rounded-md border border-gray-200 p-0.5">
-          {ZOOM_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setZoom(opt.value)}
-              className={clsx(
-                'rounded px-3 py-1 text-sm font-medium transition-colors',
-                zoom === opt.value ? 'bg-[#4f7cff] text-white' : 'text-gray-600 hover:bg-gray-100',
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className="flex shrink-0 flex-col border-b border-gray-200 bg-white">
+      <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          {project && (
+            <>
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
+              <h1 className="truncate text-base font-semibold text-gray-800">{project.name}</h1>
+            </>
+          )}
         </div>
 
-        <button
-          onClick={() => addTask({ parentId: null })}
-          disabled={!project}
-          className="rounded-md bg-[#4f7cff] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3d68f0] disabled:opacity-40"
-        >
-          + Add task
-        </button>
+        <div className="flex items-center gap-2">
+          <IconBtn title="Undo (Ctrl+Z)" onClick={undo} disabled={past.length === 0}>
+            ↶
+          </IconBtn>
+          <IconBtn title="Redo (Ctrl+Y)" onClick={redo} disabled={future.length === 0}>
+            ↷
+          </IconBtn>
+
+          {project && (
+            <div className="relative">
+              <button
+                onClick={() => setTeamOpen((v) => !v)}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Team {project.members.length > 0 && `(${project.members.length})`}
+              </button>
+              {teamOpen && (
+                <TeamPopover projectId={project.id} members={project.members} onClose={() => setTeamOpen(false)} />
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={onScrollToday}
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Today
+          </button>
+
+          <div className="flex rounded-md border border-gray-200 p-0.5">
+            {ZOOM_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setZoom(opt.value)}
+                className={clsx(
+                  'rounded px-3 py-1 text-sm font-medium transition-colors',
+                  zoom === opt.value ? 'bg-[#4f7cff] text-white' : 'text-gray-600 hover:bg-gray-100',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+          >
+            ⚙
+          </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setActionsOpen((v) => !v)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Export ▾
+            </button>
+            {actionsOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setActionsOpen(false)} />
+                <div className="absolute right-0 top-10 z-30 w-52 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setActionsOpen(false);
+                      onExportImage();
+                    }}
+                    disabled={!project}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Export as PNG image
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActionsOpen(false);
+                      window.print();
+                    }}
+                    disabled={!project}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Print / Save as PDF
+                  </button>
+                  <div className="my-1 border-t border-gray-100" />
+                  <button
+                    onClick={handleExportJSON}
+                    disabled={!project}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Export project (.json)
+                  </button>
+                  <button
+                    onClick={() => importInputRef.current?.click()}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                  >
+                    Import project (.json)
+                  </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => addTask({ parentId: null })}
+            disabled={!project}
+            className="rounded-md bg-[#4f7cff] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3d68f0] disabled:opacity-40"
+          >
+            + Add task
+          </button>
+        </div>
       </div>
+
+      {project && (
+        <div className="flex h-11 items-center gap-2 border-t border-gray-100 px-4">
+          <input
+            value={taskFilterQuery}
+            onChange={(e) => setTaskFilterQuery(e.target.value)}
+            placeholder="Search tasks or assignees…"
+            className="w-56 rounded-md border border-gray-200 px-2.5 py-1 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+          />
+
+          <label className="flex items-center gap-1.5 text-sm text-gray-500">
+            Sort by
+            <select
+              value={taskSort}
+              onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
+              className="rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            onClick={toggleCriticalPath}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm font-medium',
+              showCriticalPath
+                ? 'border-[#ef5c6e] bg-[#fdecee] text-[#ef5c6e]'
+                : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+            )}
+          >
+            <span className="h-2 w-2 rounded-full border-2 border-current" />
+            Critical path
+          </button>
+        </div>
+      )}
     </div>
+  );
+}
+
+function IconBtn({
+  children,
+  onClick,
+  title,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-base text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+    >
+      {children}
+    </button>
   );
 }
 

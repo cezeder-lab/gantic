@@ -1,11 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Attachment, Project, Task, ZoomLevel } from '../types';
-import { PROJECT_COLORS, TASK_COLORS } from '../types';
+import type {
+  Attachment,
+  ColumnVisibility,
+  Project,
+  Task,
+  TaskSortMode,
+  ZoomLevel,
+} from '../types';
+import { PROJECT_COLORS, TASK_COLORS, DEFAULT_COLUMN_VISIBILITY } from '../types';
 import { makeId } from '../lib/id';
 import { addDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
 import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
+import { cascadeDependents } from '../lib/cascade';
+
+interface HistorySnapshot {
+  projects: Project[];
+  tasks: Task[];
+}
 
 interface GanticState {
   projects: Project[];
@@ -14,16 +27,26 @@ interface GanticState {
   zoom: ZoomLevel;
   selectedTaskId: string | null;
   detailsTaskId: string | null;
+  taskSort: TaskSortMode;
+  taskFilterQuery: string;
+  showCriticalPath: boolean;
+  visibleColumns: ColumnVisibility;
+  settingsOpen: boolean;
+  past: HistorySnapshot[];
+  future: HistorySnapshot[];
 
   // Projects
   createProject: (name: string) => string;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
   duplicateProject: (id: string) => string;
+  importProject: (project: Project, tasks: Task[]) => void;
   setActiveProject: (id: string) => void;
   setProjectColor: (id: string, color: string) => void;
   addProjectMember: (projectId: string, name: string) => void;
   removeProjectMember: (projectId: string, name: string) => void;
+  addHoliday: (projectId: string, date: string) => void;
+  removeHoliday: (projectId: string, date: string) => void;
 
   // Tasks
   addTask: (opts: { parentId?: string | null; afterId?: string; name?: string }) => string;
@@ -42,6 +65,28 @@ interface GanticState {
   setSelectedTask: (id: string | null) => void;
   openTaskDetails: (id: string) => void;
   closeTaskDetails: () => void;
+  setTaskSort: (mode: TaskSortMode) => void;
+  setTaskFilterQuery: (query: string) => void;
+  toggleCriticalPath: () => void;
+  toggleColumn: (column: keyof ColumnVisibility) => void;
+  setSettingsOpen: (open: boolean) => void;
+  undo: () => void;
+  redo: () => void;
+}
+
+const HISTORY_BURST_MS = 600;
+const MAX_HISTORY = 50;
+let lastChangeAt = 0;
+
+/** Snapshots {projects, tasks} onto the undo stack, coalescing rapid bursts
+ * (e.g. typing) into a single undo step, and clears the redo stack. */
+function recordHistory(get: () => GanticState, set: (partial: Partial<GanticState>) => void) {
+  const now = Date.now();
+  if (now - lastChangeAt > HISTORY_BURST_MS) {
+    const { projects, tasks, past } = get();
+    set({ past: [...past.slice(-MAX_HISTORY + 1), { projects, tasks }], future: [] });
+  }
+  lastChangeAt = now;
 }
 
 function seedProject(): { project: Project; tasks: Task[] } {
@@ -70,15 +115,21 @@ function seedProject(): { project: Project; tasks: Task[] } {
     dependencies: [],
     description: '',
     attachments: [],
+    status: 'not_started',
     ...extra,
   });
 
   const phase1 = mk('Phase 1 — Scoping', 0, 6, null, 0);
-  const t1 = mk('Requirements gathering', 0, 2, phase1.id, 0, { progress: 100, assignee: 'Mary' });
+  const t1 = mk('Requirements gathering', 0, 2, phase1.id, 0, {
+    progress: 100,
+    assignee: 'Mary',
+    status: 'done',
+  });
   const t2 = mk('Write specification', 2, 3, phase1.id, 1, {
     progress: 60,
     assignee: 'Mary',
     dependencies: [t1.id],
+    status: 'in_progress',
   });
   const t3 = mk('Client sign-off', 5, 1, phase1.id, 2, {
     progress: 0,
@@ -100,6 +151,7 @@ function seedProject(): { project: Project; tasks: Task[] } {
       color: PROJECT_COLORS[0],
       createdAt: Date.now(),
       members: ['Mary', 'Julian', 'Sophie'],
+      holidays: [],
     },
     tasks: [phase1, t1, t2, t3, phase2, t4, t5, t6, milestone],
   };
@@ -116,8 +168,16 @@ export const useGanticStore = create<GanticState>()(
       zoom: 'week',
       selectedTaskId: null,
       detailsTaskId: null,
+      taskSort: 'manual',
+      taskFilterQuery: '',
+      showCriticalPath: false,
+      visibleColumns: DEFAULT_COLUMN_VISIBILITY,
+      settingsOpen: false,
+      past: [],
+      future: [],
 
       createProject: (name) => {
+        recordHistory(get, set);
         const id = makeId();
         const project: Project = {
           id,
@@ -125,18 +185,21 @@ export const useGanticStore = create<GanticState>()(
           color: PROJECT_COLORS[get().projects.length % PROJECT_COLORS.length],
           createdAt: Date.now(),
           members: [],
+          holidays: [],
         };
         set((s) => ({ projects: [...s.projects, project], activeProjectId: id }));
         return id;
       },
 
       renameProject: (id, name) => {
+        recordHistory(get, set);
         set((s) => ({
           projects: s.projects.map((p) => (p.id === id ? { ...p, name: name.trim() || p.name } : p)),
         }));
       },
 
       deleteProject: (id) => {
+        recordHistory(get, set);
         set((s) => {
           const tasksToRemove = s.tasks.filter((t) => t.projectId === id);
           deleteAttachmentBlobs(tasksToRemove.flatMap((t) => t.attachments.map((a) => a.id)));
@@ -150,6 +213,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       duplicateProject: (id) => {
+        recordHistory(get, set);
         const state = get();
         const source = state.projects.find((p) => p.id === id);
         if (!source) return id;
@@ -173,6 +237,7 @@ export const useGanticStore = create<GanticState>()(
           color: source.color,
           createdAt: Date.now(),
           members: [...source.members],
+          holidays: [...source.holidays],
         };
         set((s) => ({
           projects: [...s.projects, newProject],
@@ -182,15 +247,26 @@ export const useGanticStore = create<GanticState>()(
         return newProjectId;
       },
 
+      importProject: (project, tasks) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: [...s.projects, project],
+          tasks: [...s.tasks, ...tasks],
+          activeProjectId: project.id,
+        }));
+      },
+
       setActiveProject: (id) => set({ activeProjectId: id, selectedTaskId: null }),
 
       setProjectColor: (id, color) => {
+        recordHistory(get, set);
         set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, color } : p)) }));
       },
 
       addProjectMember: (projectId, name) => {
         const trimmed = name.trim();
         if (!trimmed) return;
+        recordHistory(get, set);
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === projectId && !p.members.includes(trimmed)
@@ -201,6 +277,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       removeProjectMember: (projectId, name) => {
+        recordHistory(get, set);
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === projectId ? { ...p, members: p.members.filter((m) => m !== name) } : p,
@@ -208,7 +285,28 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
+      addHoliday: (projectId, date) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId && !p.holidays.includes(date)
+              ? { ...p, holidays: [...p.holidays, date].sort() }
+              : p,
+          ),
+        }));
+      },
+
+      removeHoliday: (projectId, date) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId ? { ...p, holidays: p.holidays.filter((d) => d !== date) } : p,
+          ),
+        }));
+      },
+
       addTask: ({ parentId = null, afterId, name = 'New task' }) => {
+        recordHistory(get, set);
         const state = get();
         const projectId = state.activeProjectId;
         if (!projectId) return '';
@@ -244,23 +342,30 @@ export const useGanticStore = create<GanticState>()(
           dependencies: [],
           description: '',
           attachments: [],
+          status: 'not_started',
         };
         set((s) => ({ tasks: [...s.tasks, task], selectedTaskId: id }));
         return id;
       },
 
       updateTask: (id, patch) => {
-        set((s) => ({
-          tasks: s.tasks.map((t) => {
+        recordHistory(get, set);
+        set((s) => {
+          let tasks = s.tasks.map((t) => {
             if (t.id !== id) return t;
             const merged = { ...t, ...patch };
             if (merged.end < merged.start) merged.end = merged.start;
             return merged;
-          }),
-        }));
+          });
+          if (patch.start !== undefined || patch.end !== undefined) {
+            tasks = cascadeDependents(tasks, id);
+          }
+          return { tasks };
+        });
       },
 
       deleteTask: (id) => {
+        recordHistory(get, set);
         set((s) => {
           const idsToRemove = new Set([id, ...getDescendantIds(s.tasks, id)]);
           const removedTasks = s.tasks.filter((t) => idsToRemove.has(t.id));
@@ -284,6 +389,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       indentTask: (id) => {
+        recordHistory(get, set);
         set((s) => {
           const task = s.tasks.find((t) => t.id === id);
           if (!task) return s;
@@ -301,6 +407,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       outdentTask: (id) => {
+        recordHistory(get, set);
         set((s) => {
           const task = s.tasks.find((t) => t.id === id);
           if (!task || !task.parentId) return s;
@@ -316,6 +423,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       moveTaskVertical: (id, direction) => {
+        recordHistory(get, set);
         set((s) => {
           const task = s.tasks.find((t) => t.id === id);
           if (!task) return s;
@@ -336,6 +444,7 @@ export const useGanticStore = create<GanticState>()(
 
       addDependency: (taskId, dependsOnId) => {
         if (taskId === dependsOnId) return;
+        recordHistory(get, set);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId && !t.dependencies.includes(dependsOnId)
@@ -346,6 +455,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       removeDependency: (taskId, dependsOnId) => {
+        recordHistory(get, set);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
@@ -356,6 +466,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       addAttachment: (taskId, attachment) => {
+        recordHistory(get, set);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId ? { ...t, attachments: [...t.attachments, attachment] } : t,
@@ -364,6 +475,7 @@ export const useGanticStore = create<GanticState>()(
       },
 
       removeAttachment: (taskId, attachmentId) => {
+        recordHistory(get, set);
         deleteAttachmentBlobs([attachmentId]);
         set((s) => ({
           tasks: s.tasks.map((t) =>
@@ -378,12 +490,49 @@ export const useGanticStore = create<GanticState>()(
       setSelectedTask: (id) => set({ selectedTaskId: id }),
       openTaskDetails: (id) => set({ detailsTaskId: id, selectedTaskId: id }),
       closeTaskDetails: () => set({ detailsTaskId: null }),
+      setTaskSort: (mode) => set({ taskSort: mode }),
+      setTaskFilterQuery: (query) => set({ taskFilterQuery: query }),
+      toggleCriticalPath: () => set((s) => ({ showCriticalPath: !s.showCriticalPath })),
+      toggleColumn: (column) =>
+        set((s) => ({ visibleColumns: { ...s.visibleColumns, [column]: !s.visibleColumns[column] } })),
+      setSettingsOpen: (open) => set({ settingsOpen: open }),
+
+      undo: () => {
+        set((s) => {
+          if (s.past.length === 0) return s;
+          const previous = s.past[s.past.length - 1];
+          return {
+            past: s.past.slice(0, -1),
+            future: [{ projects: s.projects, tasks: s.tasks }, ...s.future].slice(0, MAX_HISTORY),
+            projects: previous.projects,
+            tasks: previous.tasks,
+          };
+        });
+      },
+
+      redo: () => {
+        set((s) => {
+          if (s.future.length === 0) return s;
+          const next = s.future[0];
+          return {
+            future: s.future.slice(1),
+            past: [...s.past, { projects: s.projects, tasks: s.tasks }].slice(-MAX_HISTORY),
+            projects: next.projects,
+            tasks: next.tasks,
+          };
+        });
+      },
     }),
     {
       name: 'gantic-storage',
-      version: 1,
+      version: 2,
+      // Undo history is ephemeral — no need to persist it across reloads.
+      partialize: (state) => {
+        const { past: _past, future: _future, ...rest } = state;
+        return rest;
+      },
       // Backfill fields added after the initial release so data saved by earlier
-      // versions of the app (no `members`/`description`/`attachments`) still loads.
+      // versions of the app still loads.
       migrate: (persistedState) => {
         const state = persistedState as
           | (Omit<Partial<GanticState>, 'projects' | 'tasks'> & {
@@ -394,9 +543,21 @@ export const useGanticStore = create<GanticState>()(
         if (!state) return state;
         return {
           ...state,
-          projects: (state.projects ?? []).map((p) => ({ members: [], ...p })),
-          tasks: (state.tasks ?? []).map((t) => ({ description: '', attachments: [], ...t })),
-        };
+          visibleColumns: state.visibleColumns ?? DEFAULT_COLUMN_VISIBILITY,
+          taskSort: state.taskSort ?? 'manual',
+          projects: (state.projects ?? []).map((p) => ({ members: [], holidays: [], ...p }) as Project),
+          tasks: (state.tasks ?? []).map(
+            (t) =>
+              ({
+                description: '',
+                attachments: [],
+                status:
+                  t.status ??
+                  (t.progress === 100 ? 'done' : t.progress && t.progress > 0 ? 'in_progress' : 'not_started'),
+                ...t,
+              }) as Task,
+          ),
+        } as GanticState;
       },
     },
   ),

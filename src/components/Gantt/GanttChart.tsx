@@ -1,8 +1,9 @@
 import { forwardRef, useMemo, useRef, useState } from 'react';
 import { useGanticStore } from '../../store/useGanticStore';
-import { flattenVisible, subtreeRange } from '../../lib/taskTree';
+import { flattenVisible, filterFlatTasks, subtreeRange } from '../../lib/taskTree';
 import { computeGanttRange } from '../../lib/ganttRange';
-import { dayWidth, diffDays, isWeekend, parseISO, addDays, todayISO } from '../../lib/dates';
+import { computeCriticalPath } from '../../lib/criticalPath';
+import { dayWidth, diffDays, isWeekend, parseISO, addDays, todayISO, getISOWeek } from '../../lib/dates';
 import { ROW_HEIGHT } from '../../lib/constants';
 import { GanttHeader } from './GanttHeader';
 import { TaskBar } from './TaskBar';
@@ -20,6 +21,10 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
   const tasks = useGanticStore((s) => s.tasks);
   const zoom = useGanticStore((s) => s.zoom);
+  const taskSort = useGanticStore((s) => s.taskSort);
+  const taskFilterQuery = useGanticStore((s) => s.taskFilterQuery);
+  const showCriticalPath = useGanticStore((s) => s.showCriticalPath);
+  const holidays = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.holidays ?? []);
   const addDependency = useGanticStore((s) => s.addDependency);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
 
@@ -27,10 +32,17 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const [linking, setLinking] = useState<{ sourceId: string; x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
 
-  const rows = useMemo(
-    () => (activeProjectId ? flattenVisible(tasks, activeProjectId) : []),
-    [tasks, activeProjectId],
+  const rows = useMemo(() => {
+    if (!activeProjectId) return [];
+    const flat = flattenVisible(tasks, activeProjectId, taskSort);
+    return filterFlatTasks(flat, taskFilterQuery);
+  }, [tasks, activeProjectId, taskSort, taskFilterQuery]);
+
+  const criticalIds = useMemo(
+    () => (showCriticalPath && activeProjectId ? computeCriticalPath(tasks, activeProjectId) : new Set<string>()),
+    [showCriticalPath, tasks, activeProjectId],
   );
+
   const range = useMemo(() => computeGanttRange(tasks.filter((t) => t.projectId === activeProjectId), zoom), [tasks, activeProjectId, zoom]);
   const pxPerDay = dayWidth(zoom);
   const totalWidth = range.totalDays * pxPerDay;
@@ -55,15 +67,34 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
     return map;
   }, [rows, tasks, range.start, pxPerDay]);
 
-  const weekendStripes = useMemo(() => {
+  const specialDayStripes = useMemo(() => {
     if (zoom !== 'day') return [];
-    const stripes: { key: string; left: number }[] = [];
+    const stripes: { key: string; left: number; holiday: boolean }[] = [];
     for (let i = 0; i < range.totalDays; i++) {
-      const d = parseISO(addDays(range.start, i));
-      if (isWeekend(d)) stripes.push({ key: `wk-${i}`, left: i * pxPerDay });
+      const dateStr = addDays(range.start, i);
+      const d = parseISO(dateStr);
+      const holiday = holidays.includes(dateStr);
+      if (isWeekend(d) || holiday) stripes.push({ key: `wk-${i}`, left: i * pxPerDay, holiday });
     }
     return stripes;
-  }, [range.start, range.totalDays, zoom, pxPerDay]);
+  }, [range.start, range.totalDays, zoom, pxPerDay, holidays]);
+
+  // Finer grid subdivisions than the header: a line per day in week view, a
+  // line (with an ISO week number) per week in month view.
+  const subGridLines = useMemo(() => {
+    const lines: { key: string; left: number; label?: string }[] = [];
+    if (zoom === 'week') {
+      for (let i = 1; i < range.totalDays; i++) {
+        lines.push({ key: `d-${i}`, left: i * pxPerDay });
+      }
+    } else if (zoom === 'month') {
+      for (let i = 0; i <= range.totalDays; i += 7) {
+        const d = parseISO(addDays(range.start, i));
+        lines.push({ key: `w-${i}`, left: i * pxPerDay, label: `W${getISOWeek(d)}` });
+      }
+    }
+    return lines;
+  }, [zoom, range.start, range.totalDays, pxPerDay]);
 
   const todayX = useMemo(() => diffDays(range.start, todayISO()) * pxPerDay, [range.start, pxPerDay]);
 
@@ -109,12 +140,26 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
           <GanttHeader rangeStart={range.start} totalDays={range.totalDays} zoom={zoom} pxPerDay={pxPerDay} />
 
           <div ref={contentRef} className="relative" style={{ width: totalWidth, height: totalHeight }}>
-            {weekendStripes.map((s) => (
+            {specialDayStripes.map((s) => (
               <div
                 key={s.key}
-                className="absolute top-0 bg-gray-50"
+                className={s.holiday ? 'absolute top-0 bg-orange-50' : 'absolute top-0 bg-gray-50'}
                 style={{ left: s.left, width: pxPerDay, height: totalHeight }}
               />
+            ))}
+
+            {subGridLines.map((line) => (
+              <div
+                key={line.key}
+                className="pointer-events-none absolute top-0 border-l border-gray-100"
+                style={{ left: line.left, height: totalHeight }}
+              >
+                {line.label && (
+                  <span className="absolute left-1 top-0.5 text-[9px] font-medium text-gray-300">
+                    {line.label}
+                  </span>
+                )}
+              </div>
             ))}
 
             {rows.map((_, idx) => (
@@ -151,6 +196,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
                     pxPerDay={pxPerDay}
                     rangeStart={range.start}
                     isSummary={hasChildren}
+                    isCritical={criticalIds.has(task.id)}
                     onLinkStart={handleLinkStart}
                   />
                 </div>

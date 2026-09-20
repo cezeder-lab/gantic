@@ -14,11 +14,12 @@ interface Props {
   pxPerDay: number;
   rangeStart: string;
   isSummary: boolean;
+  isCritical?: boolean;
   onLinkStart?: (taskId: string, edge: 'start' | 'end', clientX: number, clientY: number) => void;
   onLinkEnd?: (taskId: string) => void;
 }
 
-export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, onLinkStart, onLinkEnd }: Props) {
+export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, isCritical, onLinkStart, onLinkEnd }: Props) {
   const updateTask = useGanticStore((s) => s.updateTask);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
   const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
@@ -150,6 +151,7 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, onLin
           className={clsx(
             'h-3.5 w-3.5 rotate-45 border-2 border-white shadow',
             isSelected && 'ring-2 ring-offset-1 ring-[#4f7cff]',
+            isCritical && 'outline outline-2 outline-offset-1 outline-[#ef5c6e]',
           )}
           style={{ backgroundColor: task.color }}
         />
@@ -167,6 +169,7 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, onLin
         className={clsx(
           'relative h-full w-full cursor-grab overflow-hidden rounded-[5px] shadow-sm active:cursor-grabbing',
           isSelected && 'ring-2 ring-offset-1 ring-[#4f7cff]',
+          isCritical && 'outline outline-2 outline-offset-1 outline-[#ef5c6e]',
         )}
         style={{ backgroundColor: `${task.color}33` }}
         onMouseDown={(e) => beginDrag('move', e)}

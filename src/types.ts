@@ -1,4 +1,6 @@
 export type ZoomLevel = 'day' | 'week' | 'month';
+export type TaskSortMode = 'manual' | 'dueDate';
+export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
 
 export interface Project {
   id: string;
@@ -6,6 +8,7 @@ export interface Project {
   color: string;
   createdAt: number;
   members: string[];
+  holidays: string[]; // ISO dates, non-working days shaded like weekends
 }
 
 export interface Attachment {
@@ -32,7 +35,33 @@ export interface Task {
   dependencies: string[]; // ids of predecessor tasks
   description: string;
   attachments: Attachment[];
+  status: TaskStatus;
 }
+
+export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [
+  { value: 'not_started', label: 'Not started', color: '#9aa1b1' },
+  { value: 'in_progress', label: 'In progress', color: '#4f7cff' },
+  { value: 'blocked', label: 'Blocked', color: '#ef5c6e' },
+  { value: 'done', label: 'Done', color: '#2fb380' },
+];
+
+export interface ColumnVisibility {
+  start: boolean;
+  end: boolean;
+  duration: boolean;
+  progress: boolean;
+  assignee: boolean;
+  status: boolean;
+}
+
+export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
+  start: true,
+  end: true,
+  duration: true,
+  progress: true,
+  assignee: true,
+  status: true,
+};
 
 export const TASK_COLORS = [
   '#4f7cff',

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { useGanticStore } from '../../store/useGanticStore';
-import type { Task } from '../../types';
-import { TASK_COLORS } from '../../types';
+import type { ColumnVisibility, Task } from '../../types';
+import { TASK_COLORS, TASK_STATUSES } from '../../types';
 import { TABLE_COL_WIDTHS, ROW_HEIGHT } from '../../lib/constants';
 import { addDays, diffDays } from '../../lib/dates';
 
@@ -10,9 +10,10 @@ interface Props {
   task: Task;
   depth: number;
   hasChildren: boolean;
+  visibleColumns: ColumnVisibility;
 }
 
-export function TaskRow({ task, depth, hasChildren }: Props) {
+export function TaskRow({ task, depth, hasChildren, visibleColumns }: Props) {
   const updateTask = useGanticStore((s) => s.updateTask);
   const deleteTask = useGanticStore((s) => s.deleteTask);
   const toggleCollapse = useGanticStore((s) => s.toggleCollapse);
@@ -128,87 +129,116 @@ export function TaskRow({ task, depth, hasChildren }: Props) {
         </div>
       </div>
 
-      <Cell width={TABLE_COL_WIDTHS.start}>
-        <input
-          type="date"
-          value={task.start}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            const newStart = e.target.value;
-            const newEnd = newStart > task.end ? newStart : task.end;
-            updateTask(task.id, { start: newStart, end: newEnd });
-          }}
-          className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-        />
-      </Cell>
+      {visibleColumns.start && (
+        <Cell width={TABLE_COL_WIDTHS.start}>
+          <input
+            type="date"
+            value={task.start}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const newStart = e.target.value;
+              const newEnd = newStart > task.end ? newStart : task.end;
+              updateTask(task.id, { start: newStart, end: newEnd });
+            }}
+            className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+          />
+        </Cell>
+      )}
 
-      <Cell width={TABLE_COL_WIDTHS.end}>
-        <input
-          type="date"
-          value={task.end}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            const newEnd = e.target.value;
-            updateTask(task.id, { end: newEnd < task.start ? task.start : newEnd });
-          }}
-          className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-        />
-      </Cell>
+      {visibleColumns.end && (
+        <Cell width={TABLE_COL_WIDTHS.end}>
+          <input
+            type="date"
+            value={task.end}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const newEnd = e.target.value;
+              updateTask(task.id, { end: newEnd < task.start ? task.start : newEnd });
+            }}
+            className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+          />
+        </Cell>
+      )}
 
-      <Cell width={TABLE_COL_WIDTHS.duration}>
-        <input
-          type="number"
-          min={0}
-          value={duration}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            const d = Math.max(0, Number(e.target.value) || 0);
-            updateTask(task.id, { end: addDays(task.start, d) });
-          }}
-          className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-        />
-      </Cell>
-
-      <Cell width={TABLE_COL_WIDTHS.progress}>
-        <div
-          className="flex w-[84px] items-center gap-1.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full rounded-full bg-[#4f7cff]" style={{ width: `${task.progress}%` }} />
-          </div>
+      {visibleColumns.duration && (
+        <Cell width={TABLE_COL_WIDTHS.duration}>
           <input
             type="number"
             min={0}
-            max={100}
-            value={task.progress}
-            onChange={(e) =>
-              updateTask(task.id, { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
-            }
-            className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300"
+            value={duration}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const d = Math.max(0, Number(e.target.value) || 0);
+              updateTask(task.id, { end: addDays(task.start, d) });
+            }}
+            className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
           />
-          <span className="shrink-0 text-[10px] text-gray-400">%</span>
-        </div>
-      </Cell>
+        </Cell>
+      )}
 
-      <Cell width={TABLE_COL_WIDTHS.assignee}>
-        <select
-          value={task.assignee}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
-          className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-        >
-          <option value="">—</option>
-          {members.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-          {task.assignee && !members.includes(task.assignee) && (
-            <option value={task.assignee}>{task.assignee}</option>
-          )}
-        </select>
-      </Cell>
+      {visibleColumns.progress && (
+        <Cell width={TABLE_COL_WIDTHS.progress}>
+          <div className="flex w-[84px] items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200">
+              <div className="h-full rounded-full bg-[#4f7cff]" style={{ width: `${task.progress}%` }} />
+            </div>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={task.progress}
+              onChange={(e) =>
+                updateTask(task.id, { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
+              }
+              className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300"
+            />
+            <span className="shrink-0 text-[10px] text-gray-400">%</span>
+          </div>
+        </Cell>
+      )}
+
+      {visibleColumns.assignee && (
+        <Cell width={TABLE_COL_WIDTHS.assignee}>
+          <select
+            value={task.assignee}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
+            className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+          >
+            <option value="">—</option>
+            {members.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+            {task.assignee && !members.includes(task.assignee) && (
+              <option value={task.assignee}>{task.assignee}</option>
+            )}
+          </select>
+        </Cell>
+      )}
+
+      {visibleColumns.status && (
+        <Cell width={TABLE_COL_WIDTHS.status}>
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: TASK_STATUSES.find((s) => s.value === task.status)?.color }}
+            />
+            <select
+              value={task.status}
+              onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
+              className="w-full max-w-[92px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+            >
+              {TASK_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Cell>
+      )}
     </div>
   );
 }
