@@ -118,20 +118,20 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, isCri
       <div
         data-task-id={task.id}
         className="absolute flex items-center"
-        style={{ left: x, width: Math.max(width, 6), top: ROW_HEIGHT / 2 - 7, height: 14 }}
+        style={{ left: x, width: Math.max(width, 6), top: ROW_HEIGHT / 2 - 3, height: 6 }}
         onClick={(e) => {
           e.stopPropagation();
           setSelectedTask(task.id);
         }}
       >
-        <div className="h-full w-full rounded-[3px] bg-gray-700" />
+        <div className="h-full w-full rounded-[2px] bg-gray-600" />
         <div
-          className="absolute -left-[1px] top-full h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent"
-          style={{ borderTopColor: '#374151' }}
+          className="absolute -left-[1px] top-full h-0 w-0 border-l-[4px] border-t-[5px] border-l-transparent"
+          style={{ borderTopColor: '#4b5563' }}
         />
         <div
-          className="absolute -right-[1px] top-full h-0 w-0 border-r-[6px] border-t-[6px] border-r-transparent"
-          style={{ borderTopColor: '#374151' }}
+          className="absolute -right-[1px] top-full h-0 w-0 border-r-[4px] border-t-[5px] border-r-transparent"
+          style={{ borderTopColor: '#4b5563' }}
         />
       </div>
     );
@@ -167,11 +167,11 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, isCri
     >
       <div
         className={clsx(
-          'relative h-full w-full cursor-grab overflow-hidden rounded-[5px] shadow-sm active:cursor-grabbing',
+          'relative h-full w-full cursor-grab overflow-hidden rounded-[5px] border shadow-sm active:cursor-grabbing',
           isSelected && 'ring-2 ring-offset-1 ring-[#4f7cff]',
           isCritical && 'outline outline-2 outline-offset-1 outline-[#ef5c6e]',
         )}
-        style={{ backgroundColor: `${task.color}33` }}
+        style={{ backgroundColor: `${task.color}59`, borderColor: `${task.color}99` }}
         onMouseDown={(e) => beginDrag('move', e)}
         onClick={(e) => {
           e.stopPropagation();
@@ -179,11 +179,11 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, isSummary, isCri
         }}
       >
         <div
-          className="h-full rounded-[5px]"
+          className="h-full rounded-[4px]"
           style={{ width: `${progress}%`, backgroundColor: task.color }}
         />
-        <span className="pointer-events-none absolute inset-0 flex items-center px-2 text-[11px] font-medium text-gray-800 mix-blend-normal">
-          <span className="truncate" style={{ color: progress > 50 ? '#fff' : '#333' }}>
+        <span className="pointer-events-none absolute inset-0 flex items-center px-2 text-[11px] font-semibold mix-blend-normal">
+          <span className="truncate" style={{ color: progress > 50 ? '#fff' : '#20242c' }}>
             {currentWidth >= 56 ? task.name : ''}
           </span>
         </span>
