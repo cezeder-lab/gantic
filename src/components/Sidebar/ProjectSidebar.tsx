@@ -2,20 +2,24 @@ import { useState } from 'react';
 import { useGanticStore } from '../../store/useGanticStore';
 import { PROJECT_COLORS } from '../../types';
 import clsx from 'clsx';
+import { NewProjectDialog } from './NewProjectDialog';
 
 export function ProjectSidebar() {
   const projects = useGanticStore((s) => s.projects);
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
-  const createProject = useGanticStore((s) => s.createProject);
+  const viewMode = useGanticStore((s) => s.viewMode);
+  const setViewMode = useGanticStore((s) => s.setViewMode);
   const setActiveProject = useGanticStore((s) => s.setActiveProject);
   const renameProject = useGanticStore((s) => s.renameProject);
   const deleteProject = useGanticStore((s) => s.deleteProject);
   const duplicateProject = useGanticStore((s) => s.duplicateProject);
   const setProjectColor = useGanticStore((s) => s.setProjectColor);
+  const saveAsTemplate = useGanticStore((s) => s.saveAsTemplate);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
 
   const startEdit = (id: string, name: string) => {
     setEditingId(id);
@@ -37,20 +41,33 @@ export function ProjectSidebar() {
         <span className="text-[15px] font-semibold text-gray-800">Gantic</span>
       </div>
 
+      <div className="px-2 pb-2">
+        <button
+          onClick={() => setViewMode('dashboard')}
+          className={clsx(
+            'flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm',
+            viewMode === 'dashboard' ? 'bg-[#e8edff] font-medium text-[#2f4bd1]' : 'text-gray-700 hover:bg-gray-100',
+          )}
+        >
+          <span className="text-base leading-none">📊</span> Dashboard
+        </button>
+      </div>
+
       <div className="flex items-center justify-between px-4 pb-2 pt-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Projects</span>
         <button
-          onClick={() => createProject('New project')}
+          onClick={() => setNewProjectOpen(true)}
           title="New project"
           className="flex h-5 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700"
         >
           +
         </button>
       </div>
+      {newProjectOpen && <NewProjectDialog onClose={() => setNewProjectOpen(false)} />}
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {projects.map((p) => {
-          const isActive = p.id === activeProjectId;
+          const isActive = viewMode === 'project' && p.id === activeProjectId;
           return (
             <div
               key={p.id}
@@ -58,7 +75,10 @@ export function ProjectSidebar() {
                 'group relative mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm cursor-pointer',
                 isActive ? 'bg-[#e8edff] text-[#2f4bd1] font-medium' : 'text-gray-700 hover:bg-gray-100',
               )}
-              onClick={() => setActiveProject(p.id)}
+              onClick={() => {
+                setActiveProject(p.id);
+                setViewMode('project');
+              }}
             >
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -111,6 +131,16 @@ export function ProjectSidebar() {
                     }}
                   >
                     Duplicate
+                  </button>
+                  <button
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    onClick={() => {
+                      const name = prompt('Template name:', p.name);
+                      if (name) saveAsTemplate(p.id, name);
+                      setMenuId(null);
+                    }}
+                  >
+                    Save as template
                   </button>
                   <div className="my-1 border-t border-gray-100" />
                   <div className="flex items-center gap-1.5 px-3 py-1.5">

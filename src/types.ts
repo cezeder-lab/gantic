@@ -82,3 +82,24 @@ export const PROJECT_COLORS = [
   '#ef5c6e',
   '#17b3c9',
 ];
+
+export type ViewMode = 'project' | 'dashboard';
+
+/** A reusable task structure with day offsets instead of fixed dates, so it
+ * can be applied starting from any date when creating a new project. */
+export interface TemplateTask {
+  id: string;
+  name: string;
+  startOffsetDays: number;
+  durationDays: number;
+  parentId: string | null;
+  dependencies: string[];
+  isMilestone: boolean;
+  color: string;
+}
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  tasks: TemplateTask[];
+}

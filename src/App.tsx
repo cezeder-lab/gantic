@@ -4,11 +4,14 @@ import { ProjectSidebar } from './components/Sidebar/ProjectSidebar';
 import { Toolbar } from './components/Toolbar';
 import { TaskTable } from './components/TaskTable/TaskTable';
 import { GanttChart } from './components/Gantt/GanttChart';
+import { BulkActionBar } from './components/TaskTable/BulkActionBar';
 import { TaskDetailPanel } from './components/TaskDetail/TaskDetailPanel';
 import { SettingsPanel } from './components/Settings/SettingsPanel';
+import { DashboardView } from './components/Dashboard/DashboardView';
 import { useGanticStore } from './store/useGanticStore';
 import { computeGanttRange } from './lib/ganttRange';
 import { dayWidth, diffDays, todayISO } from './lib/dates';
+import type { ZoomLevel } from './types';
 
 function App() {
   const leftRef = useRef<HTMLDivElement>(null);
@@ -18,11 +21,13 @@ function App() {
   const scrollLeftRef = useRef(0);
 
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
+  const viewMode = useGanticStore((s) => s.viewMode);
   const tasks = useGanticStore((s) => s.tasks);
   const zoom = useGanticStore((s) => s.zoom);
   const project = useGanticStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
   const undo = useGanticStore((s) => s.undo);
   const redo = useGanticStore((s) => s.redo);
+  const setFitToScreen = useGanticStore((s) => s.setFitToScreen);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -69,6 +74,22 @@ function App() {
     }
   };
 
+  const handleFitToScreen = () => {
+    const projectTasks = tasks.filter((t) => t.projectId === activeProjectId);
+    if (projectTasks.length === 0 || !rightRef.current) return;
+
+    const minStart = projectTasks.reduce((m, t) => (t.start < m ? t.start : m), projectTasks[0].start);
+    const maxEnd = projectTasks.reduce((m, t) => (t.end > m ? t.end : m), projectTasks[0].end);
+    const spanDays = Math.max(1, diffDays(minStart, maxEnd));
+
+    const bucket: ZoomLevel = spanDays <= 45 ? 'day' : spanDays <= 200 ? 'week' : 'month';
+    const range = computeGanttRange(projectTasks, bucket);
+    const availableWidth = Math.max(200, rightRef.current.clientWidth - 24);
+    const pxPerDay = Math.min(60, Math.max(1.5, availableWidth / range.totalDays));
+
+    setFitToScreen(bucket, pxPerDay);
+  };
+
   const handleExportImage = async () => {
     if (!exportRootRef.current) return;
     const dataUrl = await toPng(exportRootRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 });
@@ -84,18 +105,29 @@ function App() {
         <ProjectSidebar />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="print:hidden">
-          <Toolbar onScrollToday={scrollToToday} onExportImage={handleExportImage} />
-        </div>
-        {activeProjectId ? (
-          <div id="print-root" ref={exportRootRef} className="flex min-h-0 flex-1">
-            <TaskTable ref={leftRef} onScroll={handleLeftScroll} />
-            <GanttChart ref={rightRef} onScroll={handleRightScroll} scrollLeftRef={scrollLeftRef} />
-          </div>
+        {viewMode === 'dashboard' ? (
+          <DashboardView />
         ) : (
-          <div className="flex flex-1 items-center justify-center text-gray-400">
-            Select or create a project to get started.
-          </div>
+          <>
+            <div className="print:hidden">
+              <Toolbar
+                onScrollToday={scrollToToday}
+                onExportImage={handleExportImage}
+                onFitToScreen={handleFitToScreen}
+              />
+            </div>
+            {activeProjectId ? (
+              <div id="print-root" ref={exportRootRef} className="relative flex min-h-0 flex-1">
+                <TaskTable ref={leftRef} onScroll={handleLeftScroll} />
+                <GanttChart ref={rightRef} onScroll={handleRightScroll} scrollLeftRef={scrollLeftRef} />
+                <BulkActionBar />
+              </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-gray-400">
+                Select or create a project to get started.
+              </div>
+            )}
+          </>
         )}
       </div>
       <TaskDetailPanel />

@@ -22,6 +22,8 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
     return filterFlatTasks(flat, taskFilterQuery);
   }, [tasks, activeProjectId, taskSort, taskFilterQuery]);
 
+  const visibleTaskIds = useMemo(() => rows.map((r) => r.task.id), [rows]);
+
   return (
     <div className="flex h-full flex-col border-r border-gray-200 bg-white">
       <div
@@ -49,7 +51,14 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
         )}
 
         {rows.map(({ task, depth, hasChildren }) => (
-          <TaskRow key={task.id} task={task} depth={depth} hasChildren={hasChildren} visibleColumns={visibleColumns} />
+          <TaskRow
+            key={task.id}
+            task={task}
+            depth={depth}
+            hasChildren={hasChildren}
+            visibleColumns={visibleColumns}
+            visibleTaskIds={visibleTaskIds}
+          />
         ))}
 
         <button

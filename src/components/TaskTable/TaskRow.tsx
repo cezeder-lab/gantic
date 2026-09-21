@@ -11,24 +11,46 @@ interface Props {
   depth: number;
   hasChildren: boolean;
   visibleColumns: ColumnVisibility;
+  visibleTaskIds: string[];
 }
 
-export function TaskRow({ task, depth, hasChildren, visibleColumns }: Props) {
+export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskIds }: Props) {
   const updateTask = useGanticStore((s) => s.updateTask);
   const deleteTask = useGanticStore((s) => s.deleteTask);
+  const duplicateTask = useGanticStore((s) => s.duplicateTask);
   const toggleCollapse = useGanticStore((s) => s.toggleCollapse);
   const indentTask = useGanticStore((s) => s.indentTask);
   const outdentTask = useGanticStore((s) => s.outdentTask);
   const addTask = useGanticStore((s) => s.addTask);
-  const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
+  const selectedTaskIds = useGanticStore((s) => s.selectedTaskIds);
+  const lastClickedTaskId = useGanticStore((s) => s.lastClickedTaskId);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
+  const setRangeSelection = useGanticStore((s) => s.setRangeSelection);
+  const toggleInSelection = useGanticStore((s) => s.toggleInSelection);
   const openTaskDetails = useGanticStore((s) => s.openTaskDetails);
   const members = useGanticStore((s) => s.projects.find((p) => p.id === task.projectId)?.members ?? []);
 
   const [name, setName] = useState(task.name);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const isSelected = selectedTaskId === task.id;
+  const isSelected = selectedTaskIds.includes(task.id);
   const duration = diffDays(task.start, task.end);
+
+  function handleRowClick(e: React.MouseEvent) {
+    if (e.shiftKey && lastClickedTaskId) {
+      const fromIdx = visibleTaskIds.indexOf(lastClickedTaskId);
+      const toIdx = visibleTaskIds.indexOf(task.id);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+        setRangeSelection(visibleTaskIds.slice(lo, hi + 1), task.id);
+        return;
+      }
+    }
+    if (e.ctrlKey || e.metaKey) {
+      toggleInSelection(task.id);
+      return;
+    }
+    setSelectedTask(task.id);
+  }
 
   return (
     <div
@@ -38,12 +60,32 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns }: Props) {
         isSelected ? 'bg-[#eef2ff]' : 'hover:bg-gray-50',
       )}
       style={{ height: ROW_HEIGHT }}
-      onClick={() => setSelectedTask(task.id)}
+      onClick={handleRowClick}
     >
       <div
         className="flex shrink-0 items-center gap-1 overflow-hidden pl-1"
         style={{ width: TABLE_COL_WIDTHS.name, paddingLeft: 6 + depth * 18 }}
       >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => {}}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.shiftKey && lastClickedTaskId) {
+              const fromIdx = visibleTaskIds.indexOf(lastClickedTaskId);
+              const toIdx = visibleTaskIds.indexOf(task.id);
+              if (fromIdx !== -1 && toIdx !== -1) {
+                const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+                setRangeSelection(visibleTaskIds.slice(lo, hi + 1), task.id);
+                return;
+              }
+            }
+            toggleInSelection(task.id);
+          }}
+          title="Select for bulk actions (Shift-click for a range)"
+          className="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-[#4f7cff] focus:ring-[#4f7cff]"
+        />
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -122,6 +164,9 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns }: Props) {
           </IconButton>
           <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={!task.parentId}>
             ←
+          </IconButton>
+          <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)}>
+            ⧉
           </IconButton>
           <IconButton title="Delete" onClick={() => deleteTask(task.id)}>
             ✕

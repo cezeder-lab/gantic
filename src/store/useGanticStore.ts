@@ -4,13 +4,17 @@ import type {
   Attachment,
   ColumnVisibility,
   Project,
+  ProjectTemplate,
   Task,
   TaskSortMode,
+  TaskStatus,
+  TemplateTask,
+  ViewMode,
   ZoomLevel,
 } from '../types';
 import { PROJECT_COLORS, TASK_COLORS, DEFAULT_COLUMN_VISIBILITY } from '../types';
 import { makeId } from '../lib/id';
-import { addDays, todayISO } from '../lib/dates';
+import { addDays, diffDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
 import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 import { cascadeDependents } from '../lib/cascade';
@@ -25,13 +29,18 @@ interface GanticState {
   tasks: Task[];
   activeProjectId: string | null;
   zoom: ZoomLevel;
+  customPxPerDay: number | null;
   selectedTaskId: string | null;
+  selectedTaskIds: string[];
+  lastClickedTaskId: string | null;
   detailsTaskId: string | null;
   taskSort: TaskSortMode;
   taskFilterQuery: string;
   showCriticalPath: boolean;
   visibleColumns: ColumnVisibility;
   settingsOpen: boolean;
+  viewMode: ViewMode;
+  templates: ProjectTemplate[];
   past: HistorySnapshot[];
   future: HistorySnapshot[];
 
@@ -48,10 +57,16 @@ interface GanticState {
   addHoliday: (projectId: string, date: string) => void;
   removeHoliday: (projectId: string, date: string) => void;
 
+  // Templates
+  saveAsTemplate: (projectId: string, templateName: string) => void;
+  createProjectFromTemplate: (templateId: string, projectName: string, startDate: string) => string;
+  deleteTemplate: (templateId: string) => void;
+
   // Tasks
   addTask: (opts: { parentId?: string | null; afterId?: string; name?: string }) => string;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
+  duplicateTask: (id: string) => void;
   toggleCollapse: (id: string) => void;
   indentTask: (id: string) => void;
   outdentTask: (id: string) => void;
@@ -61,8 +76,17 @@ interface GanticState {
   addAttachment: (taskId: string, attachment: Attachment) => void;
   removeAttachment: (taskId: string, attachmentId: string) => void;
 
+  // Bulk actions (multi-select)
+  bulkSetAssignee: (ids: string[], assignee: string) => void;
+  bulkSetStatus: (ids: string[], status: TaskStatus) => void;
+  bulkDeleteTasks: (ids: string[]) => void;
+
   setZoom: (zoom: ZoomLevel) => void;
+  setFitToScreen: (zoom: ZoomLevel, pxPerDay: number) => void;
   setSelectedTask: (id: string | null) => void;
+  setRangeSelection: (ids: string[], primary: string | null) => void;
+  toggleInSelection: (id: string) => void;
+  clearSelection: () => void;
   openTaskDetails: (id: string) => void;
   closeTaskDetails: () => void;
   setTaskSort: (mode: TaskSortMode) => void;
@@ -70,6 +94,7 @@ interface GanticState {
   toggleCriticalPath: () => void;
   toggleColumn: (column: keyof ColumnVisibility) => void;
   setSettingsOpen: (open: boolean) => void;
+  setViewMode: (mode: ViewMode) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -166,13 +191,18 @@ export const useGanticStore = create<GanticState>()(
       tasks: seeded.tasks,
       activeProjectId: seeded.project.id,
       zoom: 'week',
+      customPxPerDay: null,
       selectedTaskId: null,
+      selectedTaskIds: [],
+      lastClickedTaskId: null,
       detailsTaskId: null,
       taskSort: 'manual',
       taskFilterQuery: '',
       showCriticalPath: false,
       visibleColumns: DEFAULT_COLUMN_VISIBILITY,
       settingsOpen: false,
+      viewMode: 'project',
+      templates: [],
       past: [],
       future: [],
 
@@ -305,6 +335,75 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
+      saveAsTemplate: (projectId, templateName) => {
+        const state = get();
+        const projectTasks = state.tasks.filter((t) => t.projectId === projectId);
+        if (projectTasks.length === 0) return;
+        const minStart = projectTasks.reduce((m, t) => (t.start < m ? t.start : m), projectTasks[0].start);
+
+        const templateTasks: TemplateTask[] = projectTasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          startOffsetDays: diffDays(minStart, t.start),
+          durationDays: diffDays(t.start, t.end),
+          parentId: t.parentId,
+          dependencies: t.dependencies,
+          isMilestone: t.isMilestone,
+          color: t.color,
+        }));
+
+        const template: ProjectTemplate = { id: makeId(), name: templateName.trim() || 'Untitled template', tasks: templateTasks };
+        set((s) => ({ templates: [...s.templates, template] }));
+      },
+
+      createProjectFromTemplate: (templateId, projectName, startDate) => {
+        recordHistory(get, set);
+        const template = get().templates.find((t) => t.id === templateId);
+        const newProjectId = makeId();
+        const idMap = new Map<string, string>();
+        if (template) for (const t of template.tasks) idMap.set(t.id, makeId());
+
+        const newTasks: Task[] = (template?.tasks ?? []).map((t, idx) => ({
+          id: idMap.get(t.id)!,
+          projectId: newProjectId,
+          name: t.name,
+          start: addDays(startDate, t.startOffsetDays),
+          end: addDays(startDate, t.startOffsetDays + t.durationDays),
+          progress: 0,
+          parentId: t.parentId ? (idMap.get(t.parentId) ?? null) : null,
+          order: idx,
+          assignee: '',
+          color: t.color,
+          isMilestone: t.isMilestone,
+          collapsed: false,
+          dependencies: t.dependencies.map((d) => idMap.get(d)).filter((d): d is string => !!d),
+          description: '',
+          attachments: [],
+          status: 'not_started',
+        }));
+
+        const newProject: Project = {
+          id: newProjectId,
+          name: projectName.trim() || 'Untitled project',
+          color: PROJECT_COLORS[get().projects.length % PROJECT_COLORS.length],
+          createdAt: Date.now(),
+          members: [],
+          holidays: [],
+        };
+
+        set((s) => ({
+          projects: [...s.projects, newProject],
+          tasks: [...s.tasks, ...newTasks],
+          activeProjectId: newProjectId,
+          viewMode: 'project',
+        }));
+        return newProjectId;
+      },
+
+      deleteTemplate: (templateId) => {
+        set((s) => ({ templates: s.templates.filter((t) => t.id !== templateId) }));
+      },
+
       addTask: ({ parentId = null, afterId, name = 'New task' }) => {
         recordHistory(get, set);
         const state = get();
@@ -380,6 +479,39 @@ export const useGanticStore = create<GanticState>()(
             detailsTaskId: s.detailsTaskId && idsToRemove.has(s.detailsTaskId) ? null : s.detailsTaskId,
           };
         });
+      },
+
+      duplicateTask: (id) => {
+        recordHistory(get, set);
+        const state = get();
+        const task = state.tasks.find((t) => t.id === id);
+        if (!task) return;
+
+        const subtreeIds = [id, ...getDescendantIds(state.tasks, id)];
+        const idMap = new Map<string, string>();
+        for (const tid of subtreeIds) idMap.set(tid, makeId());
+
+        const newTasks: Task[] = subtreeIds.map((tid) => {
+          const t = state.tasks.find((x) => x.id === tid)!;
+          return {
+            ...t,
+            id: idMap.get(tid)!,
+            name: tid === id ? `${t.name} (copy)` : t.name,
+            parentId: tid === id ? t.parentId : (idMap.get(t.parentId!) ?? t.parentId),
+            order: tid === id ? t.order + 0.5 : t.order,
+            // Keep dependencies on tasks outside the duplicated subtree pointing at the
+            // originals; only remap links between tasks that were duplicated together.
+            dependencies: t.dependencies.map((d) => idMap.get(d) ?? d),
+            attachments: [],
+          };
+        });
+
+        const newRootId = idMap.get(id)!;
+        set((s) => ({
+          tasks: [...s.tasks, ...newTasks],
+          selectedTaskId: newRootId,
+          selectedTaskIds: [newRootId],
+        }));
       },
 
       toggleCollapse: (id) => {
@@ -486,8 +618,50 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
-      setZoom: (zoom) => set({ zoom }),
-      setSelectedTask: (id) => set({ selectedTaskId: id }),
+      bulkSetAssignee: (ids, assignee) => {
+        recordHistory(get, set);
+        const idSet = new Set(ids);
+        set((s) => ({ tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, assignee } : t)) }));
+      },
+
+      bulkSetStatus: (ids, status) => {
+        recordHistory(get, set);
+        const idSet = new Set(ids);
+        set((s) => ({ tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, status } : t)) }));
+      },
+
+      bulkDeleteTasks: (ids) => {
+        recordHistory(get, set);
+        set((s) => {
+          const idsToRemove = new Set(ids);
+          for (const id of ids) for (const d of getDescendantIds(s.tasks, id)) idsToRemove.add(d);
+          const removedTasks = s.tasks.filter((t) => idsToRemove.has(t.id));
+          deleteAttachmentBlobs(removedTasks.flatMap((t) => t.attachments.map((a) => a.id)));
+
+          const tasks = s.tasks
+            .filter((t) => !idsToRemove.has(t.id))
+            .map((t) => ({ ...t, dependencies: t.dependencies.filter((d) => !idsToRemove.has(d)) }));
+          return {
+            tasks,
+            selectedTaskId: null,
+            selectedTaskIds: [],
+            detailsTaskId: s.detailsTaskId && idsToRemove.has(s.detailsTaskId) ? null : s.detailsTaskId,
+          };
+        });
+      },
+
+      setZoom: (zoom) => set({ zoom, customPxPerDay: null }),
+      setFitToScreen: (zoom, pxPerDay) => set({ zoom, customPxPerDay: pxPerDay }),
+      setSelectedTask: (id) =>
+        set({ selectedTaskId: id, selectedTaskIds: id ? [id] : [], lastClickedTaskId: id }),
+      setRangeSelection: (ids, primary) => set({ selectedTaskIds: ids, selectedTaskId: primary }),
+      toggleInSelection: (id) =>
+        set((s) => {
+          const has = s.selectedTaskIds.includes(id);
+          const next = has ? s.selectedTaskIds.filter((x) => x !== id) : [...s.selectedTaskIds, id];
+          return { selectedTaskIds: next, selectedTaskId: id, lastClickedTaskId: id };
+        }),
+      clearSelection: () => set({ selectedTaskIds: [], selectedTaskId: null }),
       openTaskDetails: (id) => set({ detailsTaskId: id, selectedTaskId: id }),
       closeTaskDetails: () => set({ detailsTaskId: null }),
       setTaskSort: (mode) => set({ taskSort: mode }),
@@ -496,6 +670,7 @@ export const useGanticStore = create<GanticState>()(
       toggleColumn: (column) =>
         set((s) => ({ visibleColumns: { ...s.visibleColumns, [column]: !s.visibleColumns[column] } })),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setViewMode: (mode) => set({ viewMode: mode }),
 
       undo: () => {
         set((s) => {
@@ -525,10 +700,11 @@ export const useGanticStore = create<GanticState>()(
     }),
     {
       name: 'gantic-storage',
-      version: 2,
-      // Undo history is ephemeral — no need to persist it across reloads.
+      version: 3,
+      // Undo history and viewport-dependent zoom are ephemeral — no need to
+      // persist them across reloads.
       partialize: (state) => {
-        const { past: _past, future: _future, ...rest } = state;
+        const { past: _past, future: _future, customPxPerDay: _customPxPerDay, ...rest } = state;
         return rest;
       },
       // Backfill fields added after the initial release so data saved by earlier
@@ -545,6 +721,9 @@ export const useGanticStore = create<GanticState>()(
           ...state,
           visibleColumns: state.visibleColumns ?? DEFAULT_COLUMN_VISIBILITY,
           taskSort: state.taskSort ?? 'manual',
+          templates: state.templates ?? [],
+          viewMode: state.viewMode ?? 'project',
+          selectedTaskIds: state.selectedTaskIds ?? [],
           projects: (state.projects ?? []).map((p) => ({ members: [], holidays: [], ...p }) as Project),
           tasks: (state.tasks ?? []).map(
             (t) =>

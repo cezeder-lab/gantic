@@ -18,9 +18,11 @@ const SORT_OPTIONS: { value: TaskSortMode; label: string }[] = [
 export function Toolbar({
   onScrollToday,
   onExportImage,
+  onFitToScreen,
 }: {
   onScrollToday: () => void;
   onExportImage: () => void;
+  onFitToScreen: () => void;
 }) {
   const project = useGanticStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
   const tasks = useGanticStore((s) => s.tasks);
@@ -122,6 +124,14 @@ export function Toolbar({
               </button>
             ))}
           </div>
+
+          <button
+            onClick={onFitToScreen}
+            title="Fit whole project to the visible width"
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            ⤢ Fit
+          </button>
 
           <button
             onClick={() => setSettingsOpen(true)}

@@ -21,6 +21,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
   const tasks = useGanticStore((s) => s.tasks);
   const zoom = useGanticStore((s) => s.zoom);
+  const customPxPerDay = useGanticStore((s) => s.customPxPerDay);
   const taskSort = useGanticStore((s) => s.taskSort);
   const taskFilterQuery = useGanticStore((s) => s.taskFilterQuery);
   const showCriticalPath = useGanticStore((s) => s.showCriticalPath);
@@ -44,7 +45,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   );
 
   const range = useMemo(() => computeGanttRange(tasks.filter((t) => t.projectId === activeProjectId), zoom), [tasks, activeProjectId, zoom]);
-  const pxPerDay = dayWidth(zoom);
+  const pxPerDay = customPxPerDay ?? dayWidth(zoom);
   const totalWidth = range.totalDays * pxPerDay;
   const totalHeight = Math.max(rows.length * ROW_HEIGHT, ROW_HEIGHT);
 
