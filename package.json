@@ -1,7 +1,7 @@
 {
   "name": "gantic",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Instagantt-style Gantt chart editor with multi-project support",
   "author": "Gantic",
   "type": "module",
