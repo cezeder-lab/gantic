@@ -1,6 +1,11 @@
 export const ROW_HEIGHT = 36;
+export const COMPACT_ROW_HEIGHT = 26;
 export const HEADER_ROW_HEIGHT = 26;
 export const HEADER_HEIGHT = HEADER_ROW_HEIGHT * 2;
+
+export function getRowHeight(compact: boolean): number {
+  return compact ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+}
 
 export const TABLE_COL_WIDTHS = {
   name: 260,
@@ -10,6 +15,7 @@ export const TABLE_COL_WIDTHS = {
   progress: 100,
   assignee: 110,
   status: 116,
+  priority: 90,
 };
 
 export const TABLE_WIDTH =
@@ -20,4 +26,5 @@ export const TABLE_WIDTH =
   TABLE_COL_WIDTHS.progress +
   TABLE_COL_WIDTHS.assignee +
   TABLE_COL_WIDTHS.status +
+  TABLE_COL_WIDTHS.priority +
   40; // grip + gutter

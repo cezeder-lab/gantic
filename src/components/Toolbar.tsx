@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useGanticStore } from '../store/useGanticStore';
-import type { TaskSortMode, ZoomLevel } from '../types';
+import type { Language, TaskSortMode, ZoomLevel } from '../types';
 import { exportProjectToJSON, downloadProjectJSON, parseProjectImport } from '../lib/projectIO';
+import { parseTasksCsv } from '../lib/csvImport';
+import { useT } from '../lib/i18n';
 
 const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
   { value: 'day', label: 'Day' },
@@ -13,6 +15,7 @@ const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
 const SORT_OPTIONS: { value: TaskSortMode; label: string }[] = [
   { value: 'manual', label: 'Original order' },
   { value: 'dueDate', label: 'Due date' },
+  { value: 'assignee', label: 'Assignee' },
 ];
 
 export function Toolbar({
@@ -41,10 +44,19 @@ export function Toolbar({
   const undo = useGanticStore((s) => s.undo);
   const redo = useGanticStore((s) => s.redo);
   const importProject = useGanticStore((s) => s.importProject);
+  const compactView = useGanticStore((s) => s.compactView);
+  const toggleCompactView = useGanticStore((s) => s.toggleCompactView);
+  const setGlobalSearchOpen = useGanticStore((s) => s.setGlobalSearchOpen);
+  const setHelpOpen = useGanticStore((s) => s.setHelpOpen);
+  const language = useGanticStore((s) => s.language);
+  const setLanguage = useGanticStore((s) => s.setLanguage);
+  const t = useT();
 
   const [teamOpen, setTeamOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   async function handleExportJSON() {
     if (!project) return;
@@ -65,6 +77,22 @@ export function Toolbar({
       alert(err instanceof Error ? err.message : 'Could not import this file.');
     } finally {
       if (importInputRef.current) importInputRef.current.value = '';
+      setActionsOpen(false);
+    }
+  }
+
+  async function handleImportCsv(file: File) {
+    try {
+      const text = await file.text();
+      const { project: importedProject, tasks: importedTasks } = parseTasksCsv(
+        text,
+        file.name.replace(/\.csv$/i, ''),
+      );
+      importProject(importedProject, importedTasks);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not import this CSV file.');
+    } finally {
+      if (csvInputRef.current) csvInputRef.current.value = '';
       setActionsOpen(false);
     }
   }
@@ -103,11 +131,25 @@ export function Toolbar({
             </div>
           )}
 
+          {project && (
+            <div className="relative">
+              <button
+                onClick={() => setNotesOpen((v) => !v)}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Notes
+              </button>
+              {notesOpen && (
+                <NotesPopover projectId={project.id} notes={project.notes} onClose={() => setNotesOpen(false)} />
+              )}
+            </div>
+          )}
+
           <button
             onClick={onScrollToday}
             className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            Today
+            {t('today')}
           </button>
 
           <div className="flex rounded-md border border-gray-200 p-0.5">
@@ -130,7 +172,7 @@ export function Toolbar({
             title="Fit whole project to the visible width"
             className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
-            ⤢ Fit
+            ⤢ {t('fit')}
           </button>
 
           <button
@@ -146,7 +188,7 @@ export function Toolbar({
               onClick={() => setActionsOpen((v) => !v)}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
-              Export ▾
+              {t('export')} ▾
             </button>
             {actionsOpen && (
               <>
@@ -193,17 +235,65 @@ export function Toolbar({
                     className="hidden"
                     onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
                   />
+                  <button
+                    onClick={() => csvInputRef.current?.click()}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                  >
+                    Import tasks (.csv)
+                  </button>
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept="text/csv,.csv"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleImportCsv(e.target.files[0])}
+                  />
                 </div>
               </>
             )}
           </div>
 
           <button
+            onClick={() => setGlobalSearchOpen(true)}
+            title="Search all projects (Ctrl+K)"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+          >
+            🔍
+          </button>
+
+          <button
+            onClick={toggleCompactView}
+            title="Toggle compact row height"
+            className={clsx(
+              'flex h-8 w-8 items-center justify-center rounded-md border text-sm',
+              compactView ? 'border-[#4f7cff] bg-[#eef2ff] text-[#4f7cff]' : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+            )}
+          >
+            ☰
+          </button>
+
+          <button
+            onClick={() => setLanguage(language === 'en' ? ('fr' as Language) : ('en' as Language))}
+            title="Switch language"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+          >
+            {language.toUpperCase()}
+          </button>
+
+          <button
+            onClick={() => setHelpOpen(true)}
+            title="Keyboard shortcuts (?)"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+          >
+            ?
+          </button>
+
+          <button
             onClick={() => addTask({ parentId: null })}
             disabled={!project}
             className="rounded-md bg-[#4f7cff] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3d68f0] disabled:opacity-40"
           >
-            + Add task
+            + {t('addTask')}
           </button>
         </div>
       </div>
@@ -213,12 +303,12 @@ export function Toolbar({
           <input
             value={taskFilterQuery}
             onChange={(e) => setTaskFilterQuery(e.target.value)}
-            placeholder="Search tasks or assignees…"
+            placeholder={t('searchPlaceholder')}
             className="w-56 rounded-md border border-gray-200 px-2.5 py-1 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
           />
 
           <label className="flex items-center gap-1.5 text-sm text-gray-500">
-            Sort by
+            {t('sortBy')}
             <select
               value={taskSort}
               onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
@@ -242,7 +332,7 @@ export function Toolbar({
             )}
           >
             <span className="h-2 w-2 rounded-full border-2 border-current" />
-            Critical path
+            {t('criticalPath')}
           </button>
         </div>
       )}
@@ -270,6 +360,42 @@ function IconBtn({
     >
       {children}
     </button>
+  );
+}
+
+function NotesPopover({
+  projectId,
+  notes,
+  onClose,
+}: {
+  projectId: string;
+  notes: string;
+  onClose: () => void;
+}) {
+  const setProjectNotes = useGanticStore((s) => s.setProjectNotes);
+  const [value, setValue] = useState(notes);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-20" onClick={onClose} />
+      <div
+        className="absolute right-0 top-10 z-30 w-80 rounded-md border border-gray-200 bg-white p-3 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Project notes
+        </h3>
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={() => setProjectNotes(projectId, value)}
+          placeholder="Free-form notes or to-dos for this project…"
+          rows={8}
+          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+        />
+      </div>
+    </>
   );
 }
 

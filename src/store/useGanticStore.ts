@@ -3,9 +3,12 @@ import { persist } from 'zustand/middleware';
 import type {
   Attachment,
   ColumnVisibility,
+  DependencyType,
+  Language,
   Project,
   ProjectTemplate,
   Task,
+  TaskPriority,
   TaskSortMode,
   TaskStatus,
   TemplateTask,
@@ -18,10 +21,17 @@ import { addDays, diffDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
 import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 import { cascadeDependents } from '../lib/cascade';
+import { TABLE_WIDTH } from '../lib/constants';
 
 interface HistorySnapshot {
   projects: Project[];
   tasks: Task[];
+}
+
+interface Toast {
+  id: number;
+  message: string;
+  onUndo?: () => void;
 }
 
 interface GanticState {
@@ -43,6 +53,14 @@ interface GanticState {
   templates: ProjectTemplate[];
   past: HistorySnapshot[];
   future: HistorySnapshot[];
+  language: Language;
+  showArchived: boolean;
+  tableWidth: number;
+  compactView: boolean;
+  globalSearchOpen: boolean;
+  helpOpen: boolean;
+  toast: Toast | null;
+  notificationsEnabled: boolean;
 
   // Projects
   createProject: (name: string) => string;
@@ -50,12 +68,19 @@ interface GanticState {
   deleteProject: (id: string) => void;
   duplicateProject: (id: string) => string;
   importProject: (project: Project, tasks: Task[]) => void;
+  restoreProjectsAndTasks: (projects: Project[], tasks: Task[]) => void;
   setActiveProject: (id: string) => void;
   setProjectColor: (id: string, color: string) => void;
   addProjectMember: (projectId: string, name: string) => void;
   removeProjectMember: (projectId: string, name: string) => void;
   addHoliday: (projectId: string, date: string) => void;
   removeHoliday: (projectId: string, date: string) => void;
+  togglePinProject: (id: string) => void;
+  toggleArchiveProject: (id: string) => void;
+  setProjectNotes: (projectId: string, notes: string) => void;
+  addCustomFieldDef: (projectId: string, fieldName: string) => void;
+  removeCustomFieldDef: (projectId: string, fieldName: string) => void;
+  toggleUseWorkingDays: (projectId: string) => void;
 
   // Templates
   saveAsTemplate: (projectId: string, templateName: string) => void;
@@ -71,18 +96,22 @@ interface GanticState {
   indentTask: (id: string) => void;
   outdentTask: (id: string) => void;
   moveTaskVertical: (id: string, direction: 'up' | 'down') => void;
-  addDependency: (taskId: string, dependsOnId: string) => void;
+  reorderTask: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
+  addDependency: (taskId: string, dependsOnId: string, type?: DependencyType) => void;
   removeDependency: (taskId: string, dependsOnId: string) => void;
+  setDependencyType: (taskId: string, dependsOnId: string, type: DependencyType) => void;
   addAttachment: (taskId: string, attachment: Attachment) => void;
   removeAttachment: (taskId: string, attachmentId: string) => void;
 
   // Bulk actions (multi-select)
   bulkSetAssignee: (ids: string[], assignee: string) => void;
   bulkSetStatus: (ids: string[], status: TaskStatus) => void;
+  bulkSetPriority: (ids: string[], priority: TaskPriority) => void;
   bulkDeleteTasks: (ids: string[]) => void;
 
   setZoom: (zoom: ZoomLevel) => void;
   setFitToScreen: (zoom: ZoomLevel, pxPerDay: number) => void;
+  setCustomPxPerDay: (pxPerDay: number) => void;
   setSelectedTask: (id: string | null) => void;
   setRangeSelection: (ids: string[], primary: string | null) => void;
   toggleInSelection: (id: string) => void;
@@ -95,6 +124,15 @@ interface GanticState {
   toggleColumn: (column: keyof ColumnVisibility) => void;
   setSettingsOpen: (open: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
+  setLanguage: (language: Language) => void;
+  toggleShowArchived: () => void;
+  setTableWidth: (width: number) => void;
+  toggleCompactView: () => void;
+  setGlobalSearchOpen: (open: boolean) => void;
+  setHelpOpen: (open: boolean) => void;
+  showToast: (message: string, onUndo?: () => void) => void;
+  dismissToast: () => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -102,6 +140,7 @@ interface GanticState {
 const HISTORY_BURST_MS = 600;
 const MAX_HISTORY = 50;
 let lastChangeAt = 0;
+let toastCounter = 0;
 
 /** Snapshots {projects, tasks} onto the undo stack, coalescing rapid bursts
  * (e.g. typing) into a single undo step, and clears the redo stack. */
@@ -138,9 +177,13 @@ function seedProject(): { project: Project; tasks: Task[] } {
     isMilestone: false,
     collapsed: false,
     dependencies: [],
+    dependencyTypes: {},
     description: '',
     attachments: [],
     status: 'not_started',
+    priority: 'medium',
+    locked: false,
+    customFields: {},
     ...extra,
   });
 
@@ -177,6 +220,11 @@ function seedProject(): { project: Project; tasks: Task[] } {
       createdAt: Date.now(),
       members: ['Mary', 'Julian', 'Sophie'],
       holidays: [],
+      pinned: false,
+      archived: false,
+      notes: '',
+      customFieldDefs: [],
+      useWorkingDays: false,
     },
     tasks: [phase1, t1, t2, t3, phase2, t4, t5, t6, milestone],
   };
@@ -205,6 +253,14 @@ export const useGanticStore = create<GanticState>()(
       templates: [],
       past: [],
       future: [],
+      language: 'en',
+      showArchived: false,
+      tableWidth: TABLE_WIDTH,
+      compactView: false,
+      globalSearchOpen: false,
+      helpOpen: false,
+      toast: null,
+      notificationsEnabled: false,
 
       createProject: (name) => {
         recordHistory(get, set);
@@ -216,6 +272,11 @@ export const useGanticStore = create<GanticState>()(
           createdAt: Date.now(),
           members: [],
           holidays: [],
+          pinned: false,
+          archived: false,
+          notes: '',
+          customFieldDefs: [],
+          useWorkingDays: false,
         };
         set((s) => ({ projects: [...s.projects, project], activeProjectId: id }));
         return id;
@@ -268,6 +329,11 @@ export const useGanticStore = create<GanticState>()(
           createdAt: Date.now(),
           members: [...source.members],
           holidays: [...source.holidays],
+          pinned: false,
+          archived: false,
+          notes: source.notes,
+          customFieldDefs: [...source.customFieldDefs],
+          useWorkingDays: source.useWorkingDays,
         };
         set((s) => ({
           projects: [...s.projects, newProject],
@@ -284,6 +350,15 @@ export const useGanticStore = create<GanticState>()(
           tasks: [...s.tasks, ...tasks],
           activeProjectId: project.id,
         }));
+      },
+
+      restoreProjectsAndTasks: (projects, tasks) => {
+        recordHistory(get, set);
+        set({
+          projects,
+          tasks,
+          activeProjectId: projects.find((p) => p.id === get().activeProjectId)?.id ?? (projects[0]?.id ?? null),
+        });
       },
 
       setActiveProject: (id) => set({ activeProjectId: id, selectedTaskId: null }),
@@ -335,6 +410,54 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
+      togglePinProject: (id) => {
+        set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, pinned: !p.pinned } : p)) }));
+      },
+
+      toggleArchiveProject: (id) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) => (p.id === id ? { ...p, archived: !p.archived } : p)),
+        }));
+      },
+
+      setProjectNotes: (projectId, notes) => {
+        recordHistory(get, set);
+        set((s) => ({ projects: s.projects.map((p) => (p.id === projectId ? { ...p, notes } : p)) }));
+      },
+
+      addCustomFieldDef: (projectId, fieldName) => {
+        const trimmed = fieldName.trim();
+        if (!trimmed) return;
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId && !p.customFieldDefs.includes(trimmed)
+              ? { ...p, customFieldDefs: [...p.customFieldDefs, trimmed] }
+              : p,
+          ),
+        }));
+      },
+
+      removeCustomFieldDef: (projectId, fieldName) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, customFieldDefs: p.customFieldDefs.filter((f) => f !== fieldName) }
+              : p,
+          ),
+        }));
+      },
+
+      toggleUseWorkingDays: (projectId) => {
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId ? { ...p, useWorkingDays: !p.useWorkingDays } : p,
+          ),
+        }));
+      },
+
       saveAsTemplate: (projectId, templateName) => {
         const state = get();
         const projectTasks = state.tasks.filter((t) => t.projectId === projectId);
@@ -377,9 +500,13 @@ export const useGanticStore = create<GanticState>()(
           isMilestone: t.isMilestone,
           collapsed: false,
           dependencies: t.dependencies.map((d) => idMap.get(d)).filter((d): d is string => !!d),
+          dependencyTypes: {},
           description: '',
           attachments: [],
           status: 'not_started',
+          priority: 'medium',
+          locked: false,
+          customFields: {},
         }));
 
         const newProject: Project = {
@@ -389,6 +516,11 @@ export const useGanticStore = create<GanticState>()(
           createdAt: Date.now(),
           members: [],
           holidays: [],
+          pinned: false,
+          archived: false,
+          notes: '',
+          customFieldDefs: [],
+          useWorkingDays: false,
         };
 
         set((s) => ({
@@ -439,9 +571,13 @@ export const useGanticStore = create<GanticState>()(
           isMilestone: false,
           collapsed: false,
           dependencies: [],
+          dependencyTypes: {},
           description: '',
           attachments: [],
           status: 'not_started',
+          priority: 'medium',
+          locked: false,
+          customFields: {},
         };
         set((s) => ({ tasks: [...s.tasks, task], selectedTaskId: id }));
         return id;
@@ -452,6 +588,7 @@ export const useGanticStore = create<GanticState>()(
         set((s) => {
           let tasks = s.tasks.map((t) => {
             if (t.id !== id) return t;
+            if (t.locked && !('locked' in patch)) return t;
             const merged = { ...t, ...patch };
             if (merged.end < merged.start) merged.end = merged.start;
             return merged;
@@ -465,6 +602,7 @@ export const useGanticStore = create<GanticState>()(
 
       deleteTask: (id) => {
         recordHistory(get, set);
+        const removedName = get().tasks.find((t) => t.id === id)?.name;
         set((s) => {
           const idsToRemove = new Set([id, ...getDescendantIds(s.tasks, id)]);
           const removedTasks = s.tasks.filter((t) => idsToRemove.has(t.id));
@@ -479,6 +617,7 @@ export const useGanticStore = create<GanticState>()(
             detailsTaskId: s.detailsTaskId && idsToRemove.has(s.detailsTaskId) ? null : s.detailsTaskId,
           };
         });
+        get().showToast(removedName ? `"${removedName}" deleted` : 'Task deleted', () => get().undo());
       },
 
       duplicateTask: (id) => {
@@ -574,13 +713,41 @@ export const useGanticStore = create<GanticState>()(
         });
       },
 
-      addDependency: (taskId, dependsOnId) => {
+      reorderTask: (draggedId, targetId, position) => {
+        recordHistory(get, set);
+        set((s) => {
+          const dragged = s.tasks.find((t) => t.id === draggedId);
+          const target = s.tasks.find((t) => t.id === targetId);
+          if (!dragged || !target || dragged.id === target.id) return s;
+
+          const siblings = siblingsOf(s.tasks, target)
+            .filter((t) => t.id !== draggedId)
+            .sort((a, b) => a.order - b.order);
+          const targetIdx = siblings.findIndex((t) => t.id === targetId);
+          const beforeOrder = position === 'before' ? (siblings[targetIdx - 1]?.order ?? target.order - 1) : target.order;
+          const afterOrder = position === 'before' ? target.order : (siblings[targetIdx + 1]?.order ?? target.order + 1);
+          const newOrder = (beforeOrder + afterOrder) / 2;
+
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === draggedId ? { ...t, parentId: target.parentId, order: newOrder } : t,
+            ),
+          };
+        });
+      },
+
+      addDependency: (taskId, dependsOnId, type = 'FS') => {
         if (taskId === dependsOnId) return;
         recordHistory(get, set);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId && !t.dependencies.includes(dependsOnId)
-              ? { ...t, dependencies: [...t.dependencies, dependsOnId] }
+              ? {
+                  ...t,
+                  dependencies: [...t.dependencies, dependsOnId],
+                  dependencyTypes:
+                    type === 'FS' ? t.dependencyTypes : { ...t.dependencyTypes, [dependsOnId]: type },
+                }
               : t,
           ),
         }));
@@ -589,10 +756,23 @@ export const useGanticStore = create<GanticState>()(
       removeDependency: (taskId, dependsOnId) => {
         recordHistory(get, set);
         set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const { [dependsOnId]: _removed, ...restTypes } = t.dependencyTypes;
+            return {
+              ...t,
+              dependencies: t.dependencies.filter((d) => d !== dependsOnId),
+              dependencyTypes: restTypes,
+            };
+          }),
+        }));
+      },
+
+      setDependencyType: (taskId, dependsOnId, type) => {
+        recordHistory(get, set);
+        set((s) => ({
           tasks: s.tasks.map((t) =>
-            t.id === taskId
-              ? { ...t, dependencies: t.dependencies.filter((d) => d !== dependsOnId) }
-              : t,
+            t.id === taskId ? { ...t, dependencyTypes: { ...t.dependencyTypes, [dependsOnId]: type } } : t,
           ),
         }));
       },
@@ -630,6 +810,12 @@ export const useGanticStore = create<GanticState>()(
         set((s) => ({ tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, status } : t)) }));
       },
 
+      bulkSetPriority: (ids, priority) => {
+        recordHistory(get, set);
+        const idSet = new Set(ids);
+        set((s) => ({ tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, priority } : t)) }));
+      },
+
       bulkDeleteTasks: (ids) => {
         recordHistory(get, set);
         set((s) => {
@@ -648,10 +834,12 @@ export const useGanticStore = create<GanticState>()(
             detailsTaskId: s.detailsTaskId && idsToRemove.has(s.detailsTaskId) ? null : s.detailsTaskId,
           };
         });
+        get().showToast(`${ids.length} tasks deleted`, () => get().undo());
       },
 
       setZoom: (zoom) => set({ zoom, customPxPerDay: null }),
       setFitToScreen: (zoom, pxPerDay) => set({ zoom, customPxPerDay: pxPerDay }),
+      setCustomPxPerDay: (pxPerDay) => set({ customPxPerDay: pxPerDay }),
       setSelectedTask: (id) =>
         set({ selectedTaskId: id, selectedTaskIds: id ? [id] : [], lastClickedTaskId: id }),
       setRangeSelection: (ids, primary) => set({ selectedTaskIds: ids, selectedTaskId: primary }),
@@ -671,6 +859,15 @@ export const useGanticStore = create<GanticState>()(
         set((s) => ({ visibleColumns: { ...s.visibleColumns, [column]: !s.visibleColumns[column] } })),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setViewMode: (mode) => set({ viewMode: mode }),
+      setLanguage: (language) => set({ language }),
+      toggleShowArchived: () => set((s) => ({ showArchived: !s.showArchived })),
+      setTableWidth: (width) => set({ tableWidth: Math.min(900, Math.max(320, width)) }),
+      toggleCompactView: () => set((s) => ({ compactView: !s.compactView })),
+      setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
+      setHelpOpen: (open) => set({ helpOpen: open }),
+      showToast: (message, onUndo) => set({ toast: { id: ++toastCounter, message, onUndo } }),
+      dismissToast: () => set({ toast: null }),
+      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 
       undo: () => {
         set((s) => {
@@ -700,11 +897,19 @@ export const useGanticStore = create<GanticState>()(
     }),
     {
       name: 'gantic-storage',
-      version: 3,
-      // Undo history and viewport-dependent zoom are ephemeral — no need to
-      // persist them across reloads.
+      version: 4,
+      // Undo history, viewport-dependent zoom, and transient UI state are
+      // ephemeral — no need to persist them across reloads.
       partialize: (state) => {
-        const { past: _past, future: _future, customPxPerDay: _customPxPerDay, ...rest } = state;
+        const {
+          past: _past,
+          future: _future,
+          customPxPerDay: _customPxPerDay,
+          globalSearchOpen: _globalSearchOpen,
+          helpOpen: _helpOpen,
+          toast: _toast,
+          ...rest
+        } = state;
         return rest;
       },
       // Backfill fields added after the initial release so data saved by earlier
@@ -719,17 +924,38 @@ export const useGanticStore = create<GanticState>()(
         if (!state) return state;
         return {
           ...state,
-          visibleColumns: state.visibleColumns ?? DEFAULT_COLUMN_VISIBILITY,
+          visibleColumns: { ...DEFAULT_COLUMN_VISIBILITY, ...state.visibleColumns },
           taskSort: state.taskSort ?? 'manual',
           templates: state.templates ?? [],
           viewMode: state.viewMode ?? 'project',
           selectedTaskIds: state.selectedTaskIds ?? [],
-          projects: (state.projects ?? []).map((p) => ({ members: [], holidays: [], ...p }) as Project),
+          language: state.language ?? 'en',
+          showArchived: state.showArchived ?? false,
+          tableWidth: state.tableWidth ?? TABLE_WIDTH,
+          compactView: state.compactView ?? false,
+          notificationsEnabled: state.notificationsEnabled ?? false,
+          projects: (state.projects ?? []).map(
+            (p) =>
+              ({
+                members: [],
+                holidays: [],
+                pinned: false,
+                archived: false,
+                notes: '',
+                customFieldDefs: [],
+                useWorkingDays: false,
+                ...p,
+              }) as Project,
+          ),
           tasks: (state.tasks ?? []).map(
             (t) =>
               ({
                 description: '',
                 attachments: [],
+                dependencyTypes: {},
+                priority: 'medium',
+                locked: false,
+                customFields: {},
                 status:
                   t.status ??
                   (t.progress === 100 ? 'done' : t.progress && t.progress > 0 ? 'in_progress' : 'not_started'),

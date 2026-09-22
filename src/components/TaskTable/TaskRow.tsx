@@ -2,9 +2,11 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { useGanticStore } from '../../store/useGanticStore';
 import type { ColumnVisibility, Task } from '../../types';
-import { TASK_COLORS, TASK_STATUSES } from '../../types';
-import { TABLE_COL_WIDTHS, ROW_HEIGHT } from '../../lib/constants';
-import { addDays, diffDays } from '../../lib/dates';
+import { TASK_COLORS, TASK_STATUSES, TASK_PRIORITIES } from '../../types';
+import { TABLE_COL_WIDTHS, getRowHeight } from '../../lib/constants';
+import { addDays, diffDays, todayISO } from '../../lib/dates';
+import { addWorkingDays, formatDuration } from '../../lib/duration';
+import { ContextMenu, type ContextMenuItem } from '../ContextMenu';
 
 interface Props {
   task: Task;
@@ -22,18 +24,27 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
   const indentTask = useGanticStore((s) => s.indentTask);
   const outdentTask = useGanticStore((s) => s.outdentTask);
   const addTask = useGanticStore((s) => s.addTask);
+  const reorderTask = useGanticStore((s) => s.reorderTask);
   const selectedTaskIds = useGanticStore((s) => s.selectedTaskIds);
   const lastClickedTaskId = useGanticStore((s) => s.lastClickedTaskId);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
   const setRangeSelection = useGanticStore((s) => s.setRangeSelection);
   const toggleInSelection = useGanticStore((s) => s.toggleInSelection);
   const openTaskDetails = useGanticStore((s) => s.openTaskDetails);
-  const members = useGanticStore((s) => s.projects.find((p) => p.id === task.projectId)?.members ?? []);
+  const compactView = useGanticStore((s) => s.compactView);
+  const project = useGanticStore((s) => s.projects.find((p) => p.id === task.projectId));
+  const members = project?.members ?? [];
+  const customFieldDefs = project?.customFieldDefs ?? [];
 
   const [name, setName] = useState(task.name);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [dragOver, setDragOver] = useState<'before' | 'after' | null>(null);
   const isSelected = selectedTaskIds.includes(task.id);
   const duration = diffDays(task.start, task.end);
+  const rowHeight = getRowHeight(compactView);
+  const isOverdue = !task.isMilestone && task.status !== 'done' && task.end < todayISO();
+  const locked = task.locked;
 
   function handleRowClick(e: React.MouseEvent) {
     if (e.shiftKey && lastClickedTaskId) {
@@ -52,20 +63,66 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
     setSelectedTask(task.id);
   }
 
+  const contextMenuItems: ContextMenuItem[] = [
+    { label: 'Open details', onClick: () => openTaskDetails(task.id) },
+    { label: 'Add subtask', onClick: () => addTask({ parentId: task.id }), disabled: locked },
+    { label: 'Indent', onClick: () => indentTask(task.id), disabled: locked },
+    { label: 'Outdent', onClick: () => outdentTask(task.id), disabled: locked || !task.parentId },
+    { label: 'Duplicate', onClick: () => duplicateTask(task.id) },
+    { label: locked ? 'Unlock' : 'Lock', onClick: () => updateTask(task.id, { locked: !locked }) },
+    { label: 'Delete', onClick: () => deleteTask(task.id), danger: true, disabled: locked },
+  ];
+
+  function handleDurationChange(days: number) {
+    const end = project?.useWorkingDays ? addWorkingDays(task.start, days, project.holidays) : addDays(task.start, days);
+    updateTask(task.id, { end });
+  }
+
   return (
     <div
       data-row-task-id={task.id}
+      draggable={!locked}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/gantic-task-id', task.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setDragOver(e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
+      }}
+      onDragLeave={() => setDragOver(null)}
+      onDrop={(e) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('text/gantic-task-id');
+        if (draggedId && draggedId !== task.id && dragOver) reorderTask(draggedId, task.id, dragOver);
+        setDragOver(null);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
       className={clsx(
-        'group flex items-center border-b border-gray-100 text-sm',
+        'group flex items-center border-b text-sm',
         isSelected ? 'bg-[#eef2ff]' : 'hover:bg-gray-50',
+        dragOver === 'before' && 'border-t-2 border-t-[#4f7cff]',
+        dragOver === 'after' && 'border-b-2 border-b-[#4f7cff]',
+        dragOver === null && 'border-gray-100',
       )}
-      style={{ height: ROW_HEIGHT }}
+      style={{ height: rowHeight }}
       onClick={handleRowClick}
     >
+      {contextMenu && (
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenuItems} onClose={() => setContextMenu(null)} />
+      )}
+
       <div
         className="flex shrink-0 items-center gap-1 overflow-hidden pl-1"
         style={{ width: TABLE_COL_WIDTHS.name, paddingLeft: 6 + depth * 18 }}
       >
+        <span className="shrink-0 cursor-grab text-[10px] text-gray-300" title="Drag to reorder">
+          ⠿
+        </span>
         <input
           type="checkbox"
           checked={isSelected}
@@ -138,8 +195,14 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             </>
           )}
         </span>
+        {locked && (
+          <span className="shrink-0 text-[10px] text-gray-400" title="Locked">
+            🔒
+          </span>
+        )}
         <input
           value={name}
+          disabled={locked}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => updateTask(task.id, { name })}
           onKeyDown={(e) => {
@@ -147,8 +210,9 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           }}
           onClick={(e) => e.stopPropagation()}
           className={clsx(
-            'min-w-0 flex-1 truncate bg-transparent px-1 py-0.5 text-sm outline-none focus:rounded focus:bg-white focus:ring-1 focus:ring-blue-300',
+            'min-w-0 flex-1 truncate bg-transparent px-1 py-0.5 text-sm outline-none focus:rounded focus:bg-white focus:ring-1 focus:ring-blue-300 disabled:text-gray-400',
             hasChildren && 'font-semibold text-gray-800',
+            isOverdue && 'text-red-600',
           )}
         />
 
@@ -156,19 +220,25 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           <IconButton title="Open details" onClick={() => openTaskDetails(task.id)}>
             ⤢
           </IconButton>
-          <IconButton title="Add subtask" onClick={() => addTask({ parentId: task.id })}>
+          <IconButton title="Add subtask" onClick={() => addTask({ parentId: task.id })} disabled={locked}>
             +
           </IconButton>
-          <IconButton title="Indent" onClick={() => indentTask(task.id)}>
+          <IconButton title="Indent" onClick={() => indentTask(task.id)} disabled={locked}>
             →
           </IconButton>
-          <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={!task.parentId}>
+          <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={locked || !task.parentId}>
             ←
           </IconButton>
           <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)}>
             ⧉
           </IconButton>
-          <IconButton title="Delete" onClick={() => deleteTask(task.id)}>
+          <IconButton
+            title={locked ? 'Unlock' : 'Lock'}
+            onClick={() => updateTask(task.id, { locked: !locked })}
+          >
+            {locked ? '🔓' : '🔒'}
+          </IconButton>
+          <IconButton title="Delete" onClick={() => deleteTask(task.id)} disabled={locked}>
             ✕
           </IconButton>
         </div>
@@ -179,13 +249,17 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           <input
             type="date"
             value={task.start}
+            disabled={locked}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               const newStart = e.target.value;
               const newEnd = newStart > task.end ? newStart : task.end;
               updateTask(task.id, { start: newStart, end: newEnd });
             }}
-            className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+            className={clsx(
+              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300',
+              isOverdue ? 'text-red-600' : 'text-gray-600',
+            )}
           />
         </Cell>
       )}
@@ -195,29 +269,33 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           <input
             type="date"
             value={task.end}
+            disabled={locked}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               const newEnd = e.target.value;
               updateTask(task.id, { end: newEnd < task.start ? task.start : newEnd });
             }}
-            className="w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+            className={clsx(
+              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300',
+              isOverdue ? 'text-red-600 font-medium' : 'text-gray-600',
+            )}
           />
         </Cell>
       )}
 
       {visibleColumns.duration && (
         <Cell width={TABLE_COL_WIDTHS.duration}>
-          <input
-            type="number"
-            min={0}
-            value={duration}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const d = Math.max(0, Number(e.target.value) || 0);
-              updateTask(task.id, { end: addDays(task.start, d) });
-            }}
-            className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
-          />
+          <div className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="number"
+              min={0}
+              value={duration}
+              disabled={locked}
+              onChange={(e) => handleDurationChange(Math.max(0, Number(e.target.value) || 0))}
+              className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+            />
+            {duration >= 7 && <span className="text-[9px] text-gray-400">{formatDuration(duration)}</span>}
+          </div>
         </Cell>
       )}
 
@@ -232,10 +310,11 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               min={0}
               max={100}
               value={task.progress}
+              disabled={locked}
               onChange={(e) =>
                 updateTask(task.id, { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
               }
-              className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300"
+              className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
             />
             <span className="shrink-0 text-[10px] text-gray-400">%</span>
           </div>
@@ -246,9 +325,10 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
         <Cell width={TABLE_COL_WIDTHS.assignee}>
           <select
             value={task.assignee}
+            disabled={locked}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
-            className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+            className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
           >
             <option value="">—</option>
             {members.map((m) => (
@@ -272,8 +352,9 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             />
             <select
               value={task.status}
+              disabled={locked}
               onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
-              className="w-full max-w-[92px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300"
+              className="w-full max-w-[92px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
             >
               {TASK_STATUSES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -284,6 +365,41 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           </div>
         </Cell>
       )}
+
+      {visibleColumns.priority && (
+        <Cell width={TABLE_COL_WIDTHS.priority}>
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: TASK_PRIORITIES.find((p) => p.value === task.priority)?.color }}
+            />
+            <select
+              value={task.priority}
+              disabled={locked}
+              onChange={(e) => updateTask(task.id, { priority: e.target.value as Task['priority'] })}
+              className="w-full max-w-[70px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+            >
+              {TASK_PRIORITIES.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Cell>
+      )}
+
+      {customFieldDefs.map((field) => (
+        <Cell key={field} width={110}>
+          <input
+            value={task.customFields[field] ?? ''}
+            disabled={locked}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => updateTask(task.id, { customFields: { ...task.customFields, [field]: e.target.value } })}
+            className="w-full rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+          />
+        </Cell>
+      ))}
     </div>
   );
 }

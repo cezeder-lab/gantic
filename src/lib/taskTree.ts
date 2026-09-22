@@ -14,6 +14,11 @@ function childrenOf(tasks: Task[], parentId: string | null, projectId: string): 
 
 function sortSiblings(siblings: Task[], sortMode: TaskSortMode): Task[] {
   if (sortMode === 'manual') return siblings;
+  if (sortMode === 'assignee') {
+    return [...siblings].sort(
+      (a, b) => (a.assignee || '￿').localeCompare(b.assignee || '￿') || a.order - b.order,
+    );
+  }
   return [...siblings].sort((a, b) => a.end.localeCompare(b.end) || a.order - b.order);
 }
 

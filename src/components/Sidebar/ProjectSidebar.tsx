@@ -3,6 +3,7 @@ import { useGanticStore } from '../../store/useGanticStore';
 import { PROJECT_COLORS } from '../../types';
 import clsx from 'clsx';
 import { NewProjectDialog } from './NewProjectDialog';
+import { useT } from '../../lib/i18n';
 
 export function ProjectSidebar() {
   const projects = useGanticStore((s) => s.projects);
@@ -15,11 +16,20 @@ export function ProjectSidebar() {
   const duplicateProject = useGanticStore((s) => s.duplicateProject);
   const setProjectColor = useGanticStore((s) => s.setProjectColor);
   const saveAsTemplate = useGanticStore((s) => s.saveAsTemplate);
+  const togglePinProject = useGanticStore((s) => s.togglePinProject);
+  const toggleArchiveProject = useGanticStore((s) => s.toggleArchiveProject);
+  const showArchived = useGanticStore((s) => s.showArchived);
+  const toggleShowArchived = useGanticStore((s) => s.toggleShowArchived);
+  const t = useT();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [menuId, setMenuId] = useState<string | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+
+  const visibleProjects = [...projects]
+    .filter((p) => showArchived || !p.archived)
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned));
 
   const startEdit = (id: string, name: string) => {
     setEditingId(id);
@@ -49,15 +59,15 @@ export function ProjectSidebar() {
             viewMode === 'dashboard' ? 'bg-[#e8edff] font-medium text-[#2f4bd1]' : 'text-gray-700 hover:bg-gray-100',
           )}
         >
-          <span className="text-base leading-none">📊</span> Dashboard
+          <span className="text-base leading-none">📊</span> {t('dashboard')}
         </button>
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2 pt-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Projects</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('projects')}</span>
         <button
           onClick={() => setNewProjectOpen(true)}
-          title="New project"
+          title={t('newProject')}
           className="flex h-5 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700"
         >
           +
@@ -65,8 +75,8 @@ export function ProjectSidebar() {
       </div>
       {newProjectOpen && <NewProjectDialog onClose={() => setNewProjectOpen(false)} />}
 
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
-        {projects.map((p) => {
+      <div className="flex-1 overflow-y-auto px-2 pb-2">
+        {visibleProjects.map((p) => {
           const isActive = viewMode === 'project' && p.id === activeProjectId;
           return (
             <div
@@ -74,6 +84,7 @@ export function ProjectSidebar() {
               className={clsx(
                 'group relative mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm cursor-pointer',
                 isActive ? 'bg-[#e8edff] text-[#2f4bd1] font-medium' : 'text-gray-700 hover:bg-gray-100',
+                p.archived && 'opacity-50',
               )}
               onClick={() => {
                 setActiveProject(p.id);
@@ -84,6 +95,11 @@ export function ProjectSidebar() {
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: p.color }}
               />
+              {p.pinned && (
+                <span className="shrink-0 text-[10px]" title={t('pin')}>
+                  📌
+                </span>
+              )}
               {editingId === p.id ? (
                 <input
                   autoFocus
@@ -121,7 +137,7 @@ export function ProjectSidebar() {
                     className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
                     onClick={() => startEdit(p.id, p.name)}
                   >
-                    Rename
+                    {t('rename')}
                   </button>
                   <button
                     className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
@@ -130,7 +146,7 @@ export function ProjectSidebar() {
                       setMenuId(null);
                     }}
                   >
-                    Duplicate
+                    {t('duplicate')}
                   </button>
                   <button
                     className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
@@ -140,7 +156,25 @@ export function ProjectSidebar() {
                       setMenuId(null);
                     }}
                   >
-                    Save as template
+                    {t('saveAsTemplate')}
+                  </button>
+                  <button
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    onClick={() => {
+                      togglePinProject(p.id);
+                      setMenuId(null);
+                    }}
+                  >
+                    {p.pinned ? t('unpin') : t('pin')}
+                  </button>
+                  <button
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    onClick={() => {
+                      toggleArchiveProject(p.id);
+                      setMenuId(null);
+                    }}
+                  >
+                    {p.archived ? t('unarchive') : t('archive')}
                   </button>
                   <div className="my-1 border-t border-gray-100" />
                   <div className="flex items-center gap-1.5 px-3 py-1.5">
@@ -164,7 +198,7 @@ export function ProjectSidebar() {
                       setMenuId(null);
                     }}
                   >
-                    Delete
+                    {t('delete')}
                   </button>
                 </div>
               )}
@@ -172,10 +206,22 @@ export function ProjectSidebar() {
           );
         })}
 
-        {projects.length === 0 && (
-          <p className="px-2 py-4 text-center text-sm text-gray-400">No projects yet. Create one!</p>
+        {visibleProjects.length === 0 && (
+          <p className="px-2 py-4 text-center text-sm text-gray-400">{t('noProjectsYet')}</p>
         )}
       </div>
+
+      {projects.some((p) => p.archived) && (
+        <label className="flex items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-xs text-gray-500">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={toggleShowArchived}
+            className="h-3.5 w-3.5 rounded border-gray-300 text-[#4f7cff] focus:ring-[#4f7cff]"
+          />
+          {t('showArchived')}
+        </label>
+      )}
     </div>
   );
 }

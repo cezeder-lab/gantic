@@ -1,6 +1,6 @@
 import { useGanticStore } from '../../store/useGanticStore';
-import { TASK_STATUSES } from '../../types';
-import type { TaskStatus } from '../../types';
+import { TASK_STATUSES, TASK_PRIORITIES } from '../../types';
+import type { TaskPriority, TaskStatus } from '../../types';
 
 export function BulkActionBar() {
   const selectedTaskIds = useGanticStore((s) => s.selectedTaskIds);
@@ -8,6 +8,7 @@ export function BulkActionBar() {
   const members = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.members ?? []);
   const bulkSetAssignee = useGanticStore((s) => s.bulkSetAssignee);
   const bulkSetStatus = useGanticStore((s) => s.bulkSetStatus);
+  const bulkSetPriority = useGanticStore((s) => s.bulkSetPriority);
   const bulkDeleteTasks = useGanticStore((s) => s.bulkDeleteTasks);
   const clearSelection = useGanticStore((s) => s.clearSelection);
 
@@ -52,6 +53,24 @@ export function BulkActionBar() {
           {TASK_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            if (e.target.value !== '') bulkSetPriority(selectedTaskIds, e.target.value as TaskPriority);
+            e.target.value = '';
+          }}
+          className="rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600 outline-none focus:border-blue-300"
+        >
+          <option value="" disabled>
+            Set priority…
+          </option>
+          {TASK_PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
             </option>
           ))}
         </select>

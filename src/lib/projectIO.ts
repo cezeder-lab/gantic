@@ -70,6 +70,11 @@ export async function parseProjectImport(jsonText: string): Promise<{ project: P
     createdAt: Date.now(),
     members: data.project.members ?? [],
     holidays: data.project.holidays ?? [],
+    pinned: false,
+    archived: false,
+    notes: data.project.notes ?? '',
+    customFieldDefs: data.project.customFieldDefs ?? [],
+    useWorkingDays: data.project.useWorkingDays ?? false,
   };
 
   const tasks: Task[] = [];
@@ -98,9 +103,17 @@ export async function parseProjectImport(jsonText: string): Promise<{ project: P
       isMilestone: t.isMilestone ?? false,
       collapsed: t.collapsed ?? false,
       dependencies: (t.dependencies ?? []).map((d) => idMap.get(d)).filter((d): d is string => !!d),
+      dependencyTypes: Object.fromEntries(
+        Object.entries(t.dependencyTypes ?? {})
+          .map(([oldId, depType]) => [idMap.get(oldId), depType])
+          .filter(([newId]) => !!newId),
+      ),
       description: t.description ?? '',
       attachments: newAttachments,
       status: t.status ?? 'not_started',
+      priority: t.priority ?? 'medium',
+      locked: t.locked ?? false,
+      customFields: t.customFields ?? {},
     });
   }
 

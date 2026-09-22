@@ -1,6 +1,9 @@
 export type ZoomLevel = 'day' | 'week' | 'month';
-export type TaskSortMode = 'manual' | 'dueDate';
+export type TaskSortMode = 'manual' | 'dueDate' | 'assignee';
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high';
+export type DependencyType = 'FS' | 'SS' | 'FF';
+export type Language = 'en' | 'fr';
 
 export interface Project {
   id: string;
@@ -9,6 +12,11 @@ export interface Project {
   createdAt: number;
   members: string[];
   holidays: string[]; // ISO dates, non-working days shaded like weekends
+  pinned: boolean;
+  archived: boolean;
+  notes: string;
+  customFieldDefs: string[];
+  useWorkingDays: boolean;
 }
 
 export interface Attachment {
@@ -33,9 +41,13 @@ export interface Task {
   isMilestone: boolean;
   collapsed: boolean;
   dependencies: string[]; // ids of predecessor tasks
+  dependencyTypes: Record<string, DependencyType>; // predecessor id -> type; missing = 'FS'
   description: string;
   attachments: Attachment[];
   status: TaskStatus;
+  priority: TaskPriority;
+  locked: boolean;
+  customFields: Record<string, string>;
 }
 
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [
@@ -45,6 +57,18 @@ export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[
   { value: 'done', label: 'Done', color: '#2fb380' },
 ];
 
+export const TASK_PRIORITIES: { value: TaskPriority; label: string; color: string }[] = [
+  { value: 'low', label: 'Low', color: '#9aa1b1' },
+  { value: 'medium', label: 'Medium', color: '#f5a623' },
+  { value: 'high', label: 'High', color: '#ef5c6e' },
+];
+
+export const DEPENDENCY_TYPES: { value: DependencyType; label: string }[] = [
+  { value: 'FS', label: 'Finish → Start' },
+  { value: 'SS', label: 'Start → Start' },
+  { value: 'FF', label: 'Finish → Finish' },
+];
+
 export interface ColumnVisibility {
   start: boolean;
   end: boolean;
@@ -52,6 +76,7 @@ export interface ColumnVisibility {
   progress: boolean;
   assignee: boolean;
   status: boolean;
+  priority: boolean;
 }
 
 export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
@@ -61,6 +86,7 @@ export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   progress: true,
   assignee: true,
   status: true,
+  priority: false,
 };
 
 export const TASK_COLORS = [

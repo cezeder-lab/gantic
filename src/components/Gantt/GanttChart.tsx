@@ -4,7 +4,7 @@ import { flattenVisible, filterFlatTasks, subtreeRange } from '../../lib/taskTre
 import { computeGanttRange } from '../../lib/ganttRange';
 import { computeCriticalPath } from '../../lib/criticalPath';
 import { dayWidth, diffDays, isWeekend, parseISO, addDays, todayISO, getISOWeek } from '../../lib/dates';
-import { ROW_HEIGHT } from '../../lib/constants';
+import { getRowHeight } from '../../lib/constants';
 import { GanttHeader } from './GanttHeader';
 import { TaskBar } from './TaskBar';
 import { DependencyArrows, type BarPosition } from './DependencyArrows';
@@ -28,7 +28,10 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const holidays = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.holidays ?? []);
   const addDependency = useGanticStore((s) => s.addDependency);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
+  const compactView = useGanticStore((s) => s.compactView);
+  const setCustomPxPerDay = useGanticStore((s) => s.setCustomPxPerDay);
 
+  const rowHeight = getRowHeight(compactView);
   const contentRef = useRef<HTMLDivElement>(null);
   const [linking, setLinking] = useState<{ sourceId: string; x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
@@ -47,7 +50,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const range = useMemo(() => computeGanttRange(tasks.filter((t) => t.projectId === activeProjectId), zoom), [tasks, activeProjectId, zoom]);
   const pxPerDay = customPxPerDay ?? dayWidth(zoom);
   const totalWidth = range.totalDays * pxPerDay;
-  const totalHeight = Math.max(rows.length * ROW_HEIGHT, ROW_HEIGHT);
+  const totalHeight = Math.max(rows.length * rowHeight, rowHeight);
 
   const positions = useMemo(() => {
     const map = new Map<string, BarPosition>();
@@ -99,6 +102,13 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
 
   const todayX = useMemo(() => diffDays(range.start, todayISO()) * pxPerDay, [range.start, pxPerDay]);
 
+  function handleWheel(e: React.WheelEvent) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const next = pxPerDay * (e.deltaY < 0 ? 1.08 : 1 / 1.08);
+    setCustomPxPerDay(Math.min(120, Math.max(2, next)));
+  }
+
   function relativePos(clientX: number, clientY: number) {
     const rect = contentRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
@@ -134,6 +144,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
       <div
         ref={ref}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
+        onWheel={handleWheel}
         className="flex-1 overflow-auto"
         onClick={() => setSelectedTask(null)}
       >
@@ -167,7 +178,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
               <div
                 key={idx}
                 className="absolute left-0 border-b border-gray-100"
-                style={{ top: idx * ROW_HEIGHT, height: ROW_HEIGHT, width: totalWidth }}
+                style={{ top: idx * rowHeight, height: rowHeight, width: totalWidth }}
               />
             ))}
 
@@ -188,7 +199,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
                 <div
                   key={task.id}
                   className="absolute left-0"
-                  style={{ top: pos.rowIndex * ROW_HEIGHT, height: ROW_HEIGHT, width: totalWidth }}
+                  style={{ top: pos.rowIndex * rowHeight, height: rowHeight, width: totalWidth }}
                 >
                   <TaskBar
                     task={task}
@@ -196,6 +207,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
                     width={pos.width}
                     pxPerDay={pxPerDay}
                     rangeStart={range.start}
+                    rowHeight={rowHeight}
                     isSummary={hasChildren}
                     isCritical={criticalIds.has(task.id)}
                     onLinkStart={handleLinkStart}

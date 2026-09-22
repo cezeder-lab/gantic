@@ -4,14 +4,23 @@ import { ProjectSidebar } from './components/Sidebar/ProjectSidebar';
 import { Toolbar } from './components/Toolbar';
 import { TaskTable } from './components/TaskTable/TaskTable';
 import { GanttChart } from './components/Gantt/GanttChart';
+import { ResizeHandle } from './components/ResizeHandle';
 import { BulkActionBar } from './components/TaskTable/BulkActionBar';
 import { TaskDetailPanel } from './components/TaskDetail/TaskDetailPanel';
 import { SettingsPanel } from './components/Settings/SettingsPanel';
 import { DashboardView } from './components/Dashboard/DashboardView';
+import { Toast } from './components/Toast';
+import { HelpPanel } from './components/HelpPanel';
+import { GlobalSearch } from './components/GlobalSearch';
 import { useGanticStore } from './store/useGanticStore';
 import { computeGanttRange } from './lib/ganttRange';
 import { dayWidth, diffDays, todayISO } from './lib/dates';
+import { pushBackup } from './lib/backup';
+import { notify } from './lib/notifications';
 import type { ZoomLevel } from './types';
+
+const BACKUP_INTERVAL_MS = 15 * 60 * 1000;
+const NOTIFICATION_CHECK_MS = 5 * 60 * 1000;
 
 function App() {
   const leftRef = useRef<HTMLDivElement>(null);
@@ -23,32 +32,136 @@ function App() {
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
   const viewMode = useGanticStore((s) => s.viewMode);
   const tasks = useGanticStore((s) => s.tasks);
+  const projects = useGanticStore((s) => s.projects);
   const zoom = useGanticStore((s) => s.zoom);
   const project = useGanticStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
   const undo = useGanticStore((s) => s.undo);
   const redo = useGanticStore((s) => s.redo);
   const setFitToScreen = useGanticStore((s) => s.setFitToScreen);
+  const selectedTaskIds = useGanticStore((s) => s.selectedTaskIds);
+  const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
+  const duplicateTask = useGanticStore((s) => s.duplicateTask);
+  const bulkDeleteTasks = useGanticStore((s) => s.bulkDeleteTasks);
+  const deleteTask = useGanticStore((s) => s.deleteTask);
+  const clearSelection = useGanticStore((s) => s.clearSelection);
+  const globalSearchOpen = useGanticStore((s) => s.globalSearchOpen);
+  const setGlobalSearchOpen = useGanticStore((s) => s.setGlobalSearchOpen);
+  const helpOpen = useGanticStore((s) => s.helpOpen);
+  const setHelpOpen = useGanticStore((s) => s.setHelpOpen);
+  const settingsOpen = useGanticStore((s) => s.settingsOpen);
+  const setSettingsOpen = useGanticStore((s) => s.setSettingsOpen);
+  const closeTaskDetails = useGanticStore((s) => s.closeTaskDetails);
+  const notificationsEnabled = useGanticStore((s) => s.notificationsEnabled);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
-
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable;
       const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod || e.key.toLowerCase() !== 'z' && e.key.toLowerCase() !== 'y') return;
 
-      if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      if (e.key === 'Escape') {
+        if (globalSearchOpen) setGlobalSearchOpen(false);
+        else if (helpOpen) setHelpOpen(false);
+        else if (settingsOpen) setSettingsOpen(false);
+        else {
+          closeTaskDetails();
+          clearSelection();
+        }
+        return;
+      }
+
+      if (isMod && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        undo();
-      } else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
+        setGlobalSearchOpen(true);
+        return;
+      }
+
+      if (isTyping) return;
+
+      if (isMod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (isMod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
+        return;
+      }
+      if (isMod && e.key.toLowerCase() === 'd') {
+        if (selectedTaskId) {
+          e.preventDefault();
+          duplicateTask(selectedTaskId);
+        }
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const unlockedIds = selectedTaskIds.filter((id) => !tasks.find((t) => t.id === id)?.locked);
+        if (unlockedIds.length === 0) return;
+        e.preventDefault();
+        if (unlockedIds.length > 1) bulkDeleteTasks(unlockedIds);
+        else deleteTask(unlockedIds[0]);
+        return;
+      }
+      if (e.key === '?') {
+        e.preventDefault();
+        setHelpOpen(!helpOpen);
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [undo, redo]);
+  }, [
+    undo,
+    redo,
+    selectedTaskId,
+    selectedTaskIds,
+    tasks,
+    duplicateTask,
+    bulkDeleteTasks,
+    deleteTask,
+    clearSelection,
+    closeTaskDetails,
+    globalSearchOpen,
+    setGlobalSearchOpen,
+    helpOpen,
+    setHelpOpen,
+    settingsOpen,
+    setSettingsOpen,
+  ]);
+
+  // Periodic local backup snapshot (desktop-friendly, works in-browser too).
+  useEffect(() => {
+    const tick = () => {
+      const state = useGanticStore.getState();
+      pushBackup(state.projects, state.tasks);
+    };
+    tick();
+    const id = setInterval(tick, BACKUP_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  // Native desktop notifications for tasks due today or already overdue.
+  const notifiedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!notificationsEnabled) return;
+    const check = () => {
+      const today = todayISO();
+      for (const t of tasks) {
+        if (t.isMilestone === false && t.status === 'done') continue;
+        if (notifiedRef.current.has(t.id)) continue;
+        if (t.end <= today) {
+          const project = projects.find((p) => p.id === t.projectId);
+          notify(t.end < today ? 'Overdue task' : 'Due today', `${t.name} — ${project?.name ?? ''}`);
+          notifiedRef.current.add(t.id);
+        }
+      }
+    };
+    check();
+    const id = setInterval(check, NOTIFICATION_CHECK_MS);
+    return () => clearInterval(id);
+  }, [notificationsEnabled, tasks, projects]);
 
   const handleLeftScroll = (scrollTop: number) => {
     if (syncing.current) return;
@@ -119,6 +232,9 @@ function App() {
             {activeProjectId ? (
               <div id="print-root" ref={exportRootRef} className="relative flex min-h-0 flex-1">
                 <TaskTable ref={leftRef} onScroll={handleLeftScroll} />
+                <div className="print:hidden">
+                  <ResizeHandle />
+                </div>
                 <GanttChart ref={rightRef} onScroll={handleRightScroll} scrollLeftRef={scrollLeftRef} />
                 <BulkActionBar />
               </div>
@@ -132,6 +248,9 @@ function App() {
       </div>
       <TaskDetailPanel />
       <SettingsPanel />
+      <HelpPanel />
+      <GlobalSearch />
+      <Toast />
     </div>
   );
 }

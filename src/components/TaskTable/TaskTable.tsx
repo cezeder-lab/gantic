@@ -1,7 +1,7 @@
 import { forwardRef, useMemo } from 'react';
 import { useGanticStore } from '../../store/useGanticStore';
 import { flattenVisible, filterFlatTasks } from '../../lib/taskTree';
-import { TABLE_COL_WIDTHS, ROW_HEIGHT, HEADER_HEIGHT } from '../../lib/constants';
+import { TABLE_COL_WIDTHS, HEADER_HEIGHT, getRowHeight } from '../../lib/constants';
 import { TaskRow } from './TaskRow';
 
 interface Props {
@@ -15,6 +15,11 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
   const taskFilterQuery = useGanticStore((s) => s.taskFilterQuery);
   const visibleColumns = useGanticStore((s) => s.visibleColumns);
   const addTask = useGanticStore((s) => s.addTask);
+  const compactView = useGanticStore((s) => s.compactView);
+  const tableWidth = useGanticStore((s) => s.tableWidth);
+  const customFieldDefs = useGanticStore(
+    (s) => s.projects.find((p) => p.id === activeProjectId)?.customFieldDefs ?? [],
+  );
 
   const rows = useMemo(() => {
     if (!activeProjectId) return [];
@@ -23,13 +28,14 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
   }, [tasks, activeProjectId, taskSort, taskFilterQuery]);
 
   const visibleTaskIds = useMemo(() => rows.map((r) => r.task.id), [rows]);
+  const rowHeight = getRowHeight(compactView);
 
   return (
-    <div className="flex h-full flex-col border-r border-gray-200 bg-white">
+    <div className="flex h-full flex-col overflow-hidden border-r border-gray-200 bg-white" style={{ width: tableWidth }}>
       <div
         ref={ref}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="flex-1 overflow-y-auto overflow-x-auto"
       >
         <div
           className="sticky top-0 z-20 flex border-b border-gray-200 bg-[#f7f8fa] text-[11px] font-semibold uppercase tracking-wide text-gray-500"
@@ -44,6 +50,12 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
           {visibleColumns.progress && <HeaderCell width={TABLE_COL_WIDTHS.progress}>Progress</HeaderCell>}
           {visibleColumns.assignee && <HeaderCell width={TABLE_COL_WIDTHS.assignee}>Assignee</HeaderCell>}
           {visibleColumns.status && <HeaderCell width={TABLE_COL_WIDTHS.status}>Status</HeaderCell>}
+          {visibleColumns.priority && <HeaderCell width={TABLE_COL_WIDTHS.priority}>Priority</HeaderCell>}
+          {customFieldDefs.map((field) => (
+            <HeaderCell key={field} width={110}>
+              {field}
+            </HeaderCell>
+          ))}
         </div>
 
         {rows.length === 0 && taskFilterQuery && (
@@ -64,7 +76,7 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
         <button
           onClick={() => addTask({ parentId: null })}
           className="flex w-full items-center gap-2 px-3 text-left text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-          style={{ height: ROW_HEIGHT }}
+          style={{ height: rowHeight }}
         >
           <span className="text-base leading-none">+</span> Add task
         </button>

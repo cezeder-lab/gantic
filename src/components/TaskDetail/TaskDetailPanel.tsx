@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGanticStore } from '../../store/useGanticStore';
 import { makeId } from '../../lib/id';
 import { saveAttachmentBlob, getAttachmentBlob } from '../../lib/attachmentsDb';
 import { formatShortDate } from '../../lib/dates';
-import type { Attachment } from '../../types';
+import { DEPENDENCY_TYPES } from '../../types';
+import type { Attachment, DependencyType, Task } from '../../types';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -21,12 +22,19 @@ function iconForMimeType(mimeType: string): string {
 
 export function TaskDetailPanel() {
   const detailsTaskId = useGanticStore((s) => s.detailsTaskId);
+  const tasks = useGanticStore((s) => s.tasks);
   const task = useGanticStore((s) => s.tasks.find((t) => t.id === detailsTaskId));
   const project = useGanticStore((s) => s.projects.find((p) => p.id === task?.projectId));
+  const dependencyTasks = useMemo(
+    () => (task ? tasks.filter((t) => task.dependencies.includes(t.id)) : []),
+    [task, tasks],
+  );
   const closeTaskDetails = useGanticStore((s) => s.closeTaskDetails);
   const updateTask = useGanticStore((s) => s.updateTask);
   const addAttachment = useGanticStore((s) => s.addAttachment);
   const removeAttachment = useGanticStore((s) => s.removeAttachment);
+  const removeDependency = useGanticStore((s) => s.removeDependency);
+  const setDependencyType = useGanticStore((s) => s.setDependencyType);
 
   if (!task) return null;
 
@@ -41,11 +49,15 @@ export function TaskDetailPanel() {
       assignee={task.assignee}
       color={task.color}
       attachments={task.attachments}
+      dependencies={dependencyTasks}
+      dependencyTypes={task.dependencyTypes}
       projectName={project?.name ?? ''}
       onClose={closeTaskDetails}
       onUpdate={(patch) => updateTask(task.id, patch)}
       onAddAttachment={(a) => addAttachment(task.id, a)}
       onRemoveAttachment={(id) => removeAttachment(task.id, id)}
+      onRemoveDependency={(depId) => removeDependency(task.id, depId)}
+      onSetDependencyType={(depId, type) => setDependencyType(task.id, depId, type)}
     />
   );
 }
@@ -59,11 +71,15 @@ interface ContentProps {
   assignee: string;
   color: string;
   attachments: Attachment[];
+  dependencies: Task[];
+  dependencyTypes: Record<string, DependencyType>;
   projectName: string;
   onClose: () => void;
   onUpdate: (patch: { name?: string; description?: string }) => void;
   onAddAttachment: (a: Attachment) => void;
   onRemoveAttachment: (id: string) => void;
+  onRemoveDependency: (depId: string) => void;
+  onSetDependencyType: (depId: string, type: DependencyType) => void;
 }
 
 function TaskDetailPanelContent({
@@ -74,16 +90,40 @@ function TaskDetailPanelContent({
   assignee,
   color,
   attachments,
+  dependencies,
+  dependencyTypes,
   projectName,
   onClose,
   onUpdate,
   onAddAttachment,
   onRemoveAttachment,
+  onRemoveDependency,
+  onSetDependencyType,
 }: ContentProps) {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [uploading, setUploading] = useState(false);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const urls: string[] = [];
+    (async () => {
+      for (const a of attachments) {
+        if (!a.mimeType.startsWith('image/')) continue;
+        const blob = await getAttachmentBlob(a.id);
+        if (!blob || cancelled) return;
+        const url = URL.createObjectURL(blob);
+        urls.push(url);
+        setThumbnails((prev) => ({ ...prev, [a.id]: url }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [attachments]);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -156,6 +196,44 @@ function TaskDetailPanelContent({
             <span>{assignee || 'Unassigned'}</span>
           </div>
 
+          {dependencies.length > 0 && (
+            <div className="mb-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Depends on
+              </h3>
+              <ul className="space-y-1.5">
+                {dependencies.map((dep) => (
+                  <li
+                    key={dep.id}
+                    className="group flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-1.5"
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dep.color }} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{dep.name}</span>
+                    <select
+                      value={dependencyTypes[dep.id] ?? 'FS'}
+                      onChange={(e) => onSetDependencyType(dep.id, e.target.value as DependencyType)}
+                      title="Dependency type"
+                      className="shrink-0 rounded border border-gray-200 bg-transparent px-1.5 py-0.5 text-xs text-gray-600 outline-none focus:ring-1 focus:ring-blue-300"
+                    >
+                      {DEPENDENCY_TYPES.map((dt) => (
+                        <option key={dt.value} value={dt.value}>
+                          {dt.value}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => onRemoveDependency(dep.id)}
+                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 group-hover:flex"
+                      title="Remove dependency"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="mb-6">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
               Description
@@ -202,7 +280,17 @@ function TaskDetailPanelContent({
                     key={a.id}
                     className="group flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-2 hover:bg-gray-50"
                   >
-                    <span className="text-lg leading-none">{iconForMimeType(a.mimeType)}</span>
+                    {thumbnails[a.id] ? (
+                      <img
+                        src={thumbnails[a.id]}
+                        alt=""
+                        className="h-8 w-8 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-lg leading-none">
+                        {iconForMimeType(a.mimeType)}
+                      </span>
+                    )}
                     <button
                       onClick={() => handleDownload(a)}
                       className="min-w-0 flex-1 truncate text-left text-sm text-gray-700 hover:underline"
