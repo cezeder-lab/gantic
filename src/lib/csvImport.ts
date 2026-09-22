@@ -1,7 +1,7 @@
 import type { Project, Task } from '../types';
 import { makeId } from './id';
 import { todayISO, addDays } from './dates';
-import { TASK_COLORS, PROJECT_COLORS } from '../types';
+import { TASK_COLORS, PROJECT_COLORS, DEFAULT_NOTE_TAB_COLOR } from '../types';
 
 function parseCsvLine(line: string): string[] {
   const cells: string[] = [];
@@ -102,7 +102,7 @@ export function parseTasksCsv(csvText: string, projectName: string): { project: 
     holidays: [],
     pinned: false,
     archived: false,
-    notes: '',
+    noteTabs: [{ id: makeId(), title: 'Notes', content: '', color: DEFAULT_NOTE_TAB_COLOR }],
     customFieldDefs: [],
     useWorkingDays: false,
   };

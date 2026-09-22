@@ -1,4 +1,5 @@
-import type { Attachment, Project, Task } from '../types';
+import type { Attachment, NoteTab, Project, Task } from '../types';
+import { DEFAULT_NOTE_TAB_COLOR } from '../types';
 import { makeId } from './id';
 import { getAttachmentBlob, saveAttachmentBlob } from './attachmentsDb';
 
@@ -46,7 +47,7 @@ export function downloadProjectJSON(project: Project, json: string) {
 
 export async function parseProjectImport(jsonText: string): Promise<{ project: Project; tasks: Task[] }> {
   let data: {
-    project?: Partial<Project>;
+    project?: Partial<Project> & { notes?: string };
     tasks?: Partial<Task>[];
     attachments?: Record<string, string>;
   };
@@ -72,7 +73,10 @@ export async function parseProjectImport(jsonText: string): Promise<{ project: P
     holidays: data.project.holidays ?? [],
     pinned: false,
     archived: false,
-    notes: data.project.notes ?? '',
+    noteTabs:
+      data.project.noteTabs && data.project.noteTabs.length > 0
+        ? (data.project.noteTabs as NoteTab[]).map((tab) => ({ ...tab, id: makeId() }))
+        : [{ id: makeId(), title: 'Notes', content: data.project.notes ?? '', color: DEFAULT_NOTE_TAB_COLOR }],
     customFieldDefs: data.project.customFieldDefs ?? [],
     useWorkingDays: data.project.useWorkingDays ?? false,
   };

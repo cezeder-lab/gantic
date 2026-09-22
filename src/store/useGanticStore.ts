@@ -4,6 +4,7 @@ import type {
   Attachment,
   ColumnVisibility,
   DependencyType,
+  NoteTab,
   Project,
   ProjectTemplate,
   Task,
@@ -14,7 +15,7 @@ import type {
   ViewMode,
   ZoomLevel,
 } from '../types';
-import { PROJECT_COLORS, TASK_COLORS, DEFAULT_COLUMN_VISIBILITY } from '../types';
+import { PROJECT_COLORS, TASK_COLORS, DEFAULT_COLUMN_VISIBILITY, NOTE_TAB_COLORS, DEFAULT_NOTE_TAB_COLOR } from '../types';
 import { makeId } from '../lib/id';
 import { addDays, diffDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
@@ -81,7 +82,6 @@ interface GanticState {
   removeHoliday: (projectId: string, date: string) => void;
   togglePinProject: (id: string) => void;
   toggleArchiveProject: (id: string) => void;
-  setProjectNotes: (projectId: string, notes: string) => void;
   addCustomFieldDef: (projectId: string, fieldName: string) => void;
   removeCustomFieldDef: (projectId: string, fieldName: string) => void;
   toggleUseWorkingDays: (projectId: string) => void;
@@ -141,6 +141,13 @@ interface GanticState {
   toggleNotesPanel: () => void;
   setNotesPanelOpen: (open: boolean) => void;
   setNotesPanelHeight: (height: number) => void;
+  activeNoteTabId: Record<string, string>;
+  setActiveNoteTab: (projectId: string, tabId: string) => void;
+  setNoteTabContent: (projectId: string, tabId: string, content: string) => void;
+  addNoteTab: (projectId: string) => string;
+  renameNoteTab: (projectId: string, tabId: string, title: string) => void;
+  setNoteTabColor: (projectId: string, tabId: string, color: string) => void;
+  deleteNoteTab: (projectId: string, tabId: string) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -149,6 +156,10 @@ const HISTORY_BURST_MS = 600;
 const MAX_HISTORY = 50;
 let lastChangeAt = 0;
 let toastCounter = 0;
+
+function defaultNoteTabs(): NoteTab[] {
+  return [{ id: makeId(), title: 'Notes', content: '', color: DEFAULT_NOTE_TAB_COLOR }];
+}
 
 /** Snapshots {projects, tasks} onto the undo stack, coalescing rapid bursts
  * (e.g. typing) into a single undo step, and clears the redo stack. */
@@ -230,7 +241,7 @@ function seedProject(): { project: Project; tasks: Task[] } {
       holidays: [],
       pinned: false,
       archived: false,
-      notes: '',
+      noteTabs: defaultNoteTabs(),
       customFieldDefs: [],
       useWorkingDays: false,
     },
@@ -272,6 +283,7 @@ export const useGanticStore = create<GanticState>()(
       notesPanelOpen: false,
       notesPanelHeight: NOTES_PANEL_HEIGHT,
       updateStatus: null,
+      activeNoteTabId: {},
 
       createProject: (name) => {
         recordHistory(get, set);
@@ -285,7 +297,7 @@ export const useGanticStore = create<GanticState>()(
           holidays: [],
           pinned: false,
           archived: false,
-          notes: '',
+          noteTabs: defaultNoteTabs(),
           customFieldDefs: [],
           useWorkingDays: false,
         };
@@ -342,7 +354,7 @@ export const useGanticStore = create<GanticState>()(
           holidays: [...source.holidays],
           pinned: false,
           archived: false,
-          notes: source.notes,
+          noteTabs: source.noteTabs.map((tab) => ({ ...tab, id: makeId() })),
           customFieldDefs: [...source.customFieldDefs],
           useWorkingDays: source.useWorkingDays,
         };
@@ -432,9 +444,75 @@ export const useGanticStore = create<GanticState>()(
         }));
       },
 
-      setProjectNotes: (projectId, notes) => {
+      setActiveNoteTab: (projectId, tabId) => {
+        set((s) => ({ activeNoteTabId: { ...s.activeNoteTabId, [projectId]: tabId } }));
+      },
+
+      setNoteTabContent: (projectId, tabId, content) => {
         recordHistory(get, set);
-        set((s) => ({ projects: s.projects.map((p) => (p.id === projectId ? { ...p, notes } : p)) }));
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, noteTabs: p.noteTabs.map((tab) => (tab.id === tabId ? { ...tab, content } : tab)) }
+              : p,
+          ),
+        }));
+      },
+
+      addNoteTab: (projectId) => {
+        recordHistory(get, set);
+        const newTabId = makeId();
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const color = NOTE_TAB_COLORS[p.noteTabs.length % NOTE_TAB_COLORS.length].value;
+            const newTab: NoteTab = { id: newTabId, title: `Notes ${p.noteTabs.length + 1}`, content: '', color };
+            return { ...p, noteTabs: [...p.noteTabs, newTab] };
+          }),
+          activeNoteTabId: { ...s.activeNoteTabId, [projectId]: newTabId },
+        }));
+        return newTabId;
+      },
+
+      renameNoteTab: (projectId, tabId, title) => {
+        recordHistory(get, set);
+        const trimmed = title.trim();
+        if (!trimmed) return;
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, noteTabs: p.noteTabs.map((tab) => (tab.id === tabId ? { ...tab, title: trimmed } : tab)) }
+              : p,
+          ),
+        }));
+      },
+
+      setNoteTabColor: (projectId, tabId, color) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, noteTabs: p.noteTabs.map((tab) => (tab.id === tabId ? { ...tab, color } : tab)) }
+              : p,
+          ),
+        }));
+      },
+
+      deleteNoteTab: (projectId, tabId) => {
+        recordHistory(get, set);
+        set((s) => {
+          const project = s.projects.find((p) => p.id === projectId);
+          if (!project || project.noteTabs.length <= 1) return s;
+          const remaining = project.noteTabs.filter((tab) => tab.id !== tabId);
+          const nextActive =
+            s.activeNoteTabId[projectId] === tabId ? remaining[0]?.id : s.activeNoteTabId[projectId];
+          return {
+            projects: s.projects.map((p) => (p.id === projectId ? { ...p, noteTabs: remaining } : p)),
+            activeNoteTabId: nextActive
+              ? { ...s.activeNoteTabId, [projectId]: nextActive }
+              : s.activeNoteTabId,
+          };
+        });
       },
 
       addCustomFieldDef: (projectId, fieldName) => {
@@ -529,7 +607,7 @@ export const useGanticStore = create<GanticState>()(
           holidays: [],
           pinned: false,
           archived: false,
-          notes: '',
+          noteTabs: defaultNoteTabs(),
           customFieldDefs: [],
           useWorkingDays: false,
         };
@@ -913,7 +991,7 @@ export const useGanticStore = create<GanticState>()(
     }),
     {
       name: 'gantic-storage',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => appStorage),
       // Undo history, viewport-dependent zoom, and transient UI state are
       // ephemeral — no need to persist them across reloads.
@@ -954,19 +1032,26 @@ export const useGanticStore = create<GanticState>()(
           compactView: state.compactView ?? false,
           notificationsEnabled: state.notificationsEnabled ?? false,
           notesPanelHeight: state.notesPanelHeight ?? NOTES_PANEL_HEIGHT,
-          projects: (state.projects ?? []).map(
-            (p) =>
-              ({
-                members: [],
-                holidays: [],
-                pinned: false,
-                archived: false,
-                notes: '',
-                customFieldDefs: [],
-                useWorkingDays: false,
-                ...p,
-              }) as Project,
-          ),
+          activeNoteTabId: state.activeNoteTabId ?? {},
+          projects: (state.projects ?? []).map((p) => {
+            // Pre-note-tabs projects stored a single `notes` string — fold it
+            // into a one-tab array so old data still opens.
+            const legacy = p as Partial<Project> & { notes?: string };
+            const noteTabs: NoteTab[] =
+              legacy.noteTabs && legacy.noteTabs.length > 0
+                ? legacy.noteTabs
+                : [{ id: makeId(), title: 'Notes', content: legacy.notes ?? '', color: DEFAULT_NOTE_TAB_COLOR }];
+            return {
+              members: [],
+              holidays: [],
+              pinned: false,
+              archived: false,
+              customFieldDefs: [],
+              useWorkingDays: false,
+              ...legacy,
+              noteTabs,
+            } as Project;
+          }),
           tasks: (state.tasks ?? []).map(
             (t) =>
               ({
