@@ -6,6 +6,15 @@ import { listBackups } from '../../lib/backup';
 import { requestNotificationPermission, notificationsSupported } from '../../lib/notifications';
 import { getElectronAPI } from '../../lib/electronBridge';
 
+const UPDATE_STATUS_LABEL: Record<string, string> = {
+  checking: 'Checking for updates…',
+  available: 'Update found, downloading…',
+  'not-available': "You're up to date.",
+  downloading: 'Downloading update…',
+  downloaded: 'Update downloaded — restart to install.',
+  error: 'Could not check for updates.',
+};
+
 const COLUMN_LABELS: { key: keyof ColumnVisibility; label: string }[] = [
   { key: 'start', label: 'Start date' },
   { key: 'end', label: 'End date' },
@@ -30,6 +39,8 @@ export function SettingsPanel() {
   const darkMode = useGanticStore((s) => s.darkMode);
   const toggleDarkMode = useGanticStore((s) => s.toggleDarkMode);
   const setHelpOpen = useGanticStore((s) => s.setHelpOpen);
+  const updateStatus = useGanticStore((s) => s.updateStatus);
+  const setUpdateStatus = useGanticStore((s) => s.setUpdateStatus);
   const notificationsEnabled = useGanticStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useGanticStore((s) => s.setNotificationsEnabled);
   const restoreProjectsAndTasks = useGanticStore((s) => s.restoreProjectsAndTasks);
@@ -38,11 +49,14 @@ export function SettingsPanel() {
   const [newField, setNewField] = useState('');
   const [dataFolder, setDataFolder] = useState<string | null>(null);
   const [choosingFolder, setChoosingFolder] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const electronAPI = getElectronAPI();
 
   useEffect(() => {
     if (settingsOpen && electronAPI) {
       electronAPI.getDataFolder().then(setDataFolder);
+      electronAPI.getAppVersion().then(setAppVersion);
     }
   }, [settingsOpen, electronAPI]);
 
@@ -60,6 +74,20 @@ export function SettingsPanel() {
       }
     } finally {
       setChoosingFolder(false);
+    }
+  }
+
+  async function handleCheckForUpdates() {
+    if (!electronAPI) return;
+    setCheckingUpdate(true);
+    setUpdateStatus({ status: 'checking' });
+    try {
+      const result = await electronAPI.checkForUpdates();
+      if (result.skipped) {
+        setUpdateStatus({ status: 'error', message: result.reason });
+      }
+    } finally {
+      setCheckingUpdate(false);
     }
   }
 
@@ -115,6 +143,35 @@ export function SettingsPanel() {
               >
                 {choosingFolder ? 'Copying…' : 'Choose folder…'}
               </button>
+            </section>
+          )}
+
+          {electronAPI && (
+            <section className="mb-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Software update
+              </h3>
+              <p className="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                Version {appVersion ?? '…'}
+                {updateStatus && ` — ${UPDATE_STATUS_LABEL[updateStatus.status] ?? updateStatus.status}`}
+                {updateStatus?.status === 'downloading' && updateStatus.percent != null && ` (${Math.round(updateStatus.percent)}%)`}
+              </p>
+              {updateStatus?.status === 'downloaded' ? (
+                <button
+                  onClick={() => electronAPI.quitAndInstallUpdate()}
+                  className="rounded-md bg-[#4f7cff] px-2.5 py-1 text-sm font-medium text-white hover:bg-[#3d68f0]"
+                >
+                  Restart &amp; install
+                </button>
+              ) : (
+                <button
+                  onClick={handleCheckForUpdates}
+                  disabled={checkingUpdate}
+                  className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {checkingUpdate ? 'Checking…' : 'Check for updates'}
+                </button>
+              )}
             </section>
           )}
 

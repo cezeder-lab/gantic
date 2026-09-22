@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
@@ -54,6 +55,8 @@ async function copyFolderContents(oldFolder, newFolder) {
   }
 }
 
+let mainWindow = null;
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -76,6 +79,11 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 }
 
 ipcMain.handle('data:getFolder', () => getDataFolder());
@@ -153,8 +161,50 @@ ipcMain.handle('data:deleteAttachments', async (_event, ids) => {
   }
 });
 
+// Auto-update via electron-updater, fed from GitHub Releases (see the
+// `publish` block in package.json). Downloads happen automatically once an
+// update is found; the renderer is only asked to prompt for a restart once
+// the new version is fully downloaded and ready to install.
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function sendUpdateEvent(payload) {
+  mainWindow?.webContents.send('update:event', payload);
+}
+
+autoUpdater.on('checking-for-update', () => sendUpdateEvent({ status: 'checking' }));
+autoUpdater.on('update-available', (info) => sendUpdateEvent({ status: 'available', version: info.version }));
+autoUpdater.on('update-not-available', () => sendUpdateEvent({ status: 'not-available' }));
+autoUpdater.on('error', (err) =>
+  sendUpdateEvent({ status: 'error', message: err instanceof Error ? err.message : String(err) }),
+);
+autoUpdater.on('download-progress', (progress) => sendUpdateEvent({ status: 'downloading', percent: progress.percent }));
+autoUpdater.on('update-downloaded', (info) => sendUpdateEvent({ status: 'downloaded', version: info.version }));
+
+ipcMain.handle('update:check', async () => {
+  if (!app.isPackaged) return { skipped: true, reason: 'Updates only run in a packaged build.' };
+  try {
+    await autoUpdater.checkForUpdates();
+    return { skipped: false };
+  } catch (err) {
+    return { skipped: true, reason: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('update:quitAndInstall', () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('update:getVersion', () => app.getVersion());
+
 app.whenReady().then(() => {
   createWindow();
+
+  // A quiet check shortly after launch — the renderer only hears about it if
+  // there's actually something to report (available/downloaded/error).
+  if (app.isPackaged) {
+    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 3000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

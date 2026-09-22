@@ -22,6 +22,7 @@ import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 import { cascadeDependents } from '../lib/cascade';
 import { TABLE_WIDTH, NOTES_PANEL_HEIGHT, NOTES_PANEL_MIN_HEIGHT, NOTES_PANEL_MAX_HEIGHT } from '../lib/constants';
 import { appStorage } from '../lib/electronStorage';
+import type { ElectronUpdateEvent } from '../lib/electronBridge';
 
 interface HistorySnapshot {
   projects: Project[];
@@ -63,6 +64,7 @@ interface GanticState {
   notificationsEnabled: boolean;
   notesPanelOpen: boolean;
   notesPanelHeight: number;
+  updateStatus: ElectronUpdateEvent | null;
 
   // Projects
   createProject: (name: string) => string;
@@ -132,6 +134,7 @@ interface GanticState {
   toggleCompactView: () => void;
   setGlobalSearchOpen: (open: boolean) => void;
   setHelpOpen: (open: boolean) => void;
+  setUpdateStatus: (status: ElectronUpdateEvent | null) => void;
   showToast: (message: string, onUndo?: () => void) => void;
   dismissToast: () => void;
   setNotificationsEnabled: (enabled: boolean) => void;
@@ -268,6 +271,7 @@ export const useGanticStore = create<GanticState>()(
       notificationsEnabled: false,
       notesPanelOpen: false,
       notesPanelHeight: NOTES_PANEL_HEIGHT,
+      updateStatus: null,
 
       createProject: (name) => {
         recordHistory(get, set);
@@ -872,6 +876,7 @@ export const useGanticStore = create<GanticState>()(
       toggleCompactView: () => set((s) => ({ compactView: !s.compactView })),
       setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
       setHelpOpen: (open) => set({ helpOpen: open }),
+      setUpdateStatus: (status) => set({ updateStatus: status }),
       showToast: (message, onUndo) => set({ toast: { id: ++toastCounter, message, onUndo } }),
       dismissToast: () => set({ toast: null }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
@@ -921,6 +926,7 @@ export const useGanticStore = create<GanticState>()(
           helpOpen: _helpOpen,
           toast: _toast,
           notesPanelOpen: _notesPanelOpen,
+          updateStatus: _updateStatus,
           ...rest
         } = state;
         return rest;

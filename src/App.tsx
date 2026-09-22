@@ -10,6 +10,7 @@ import { TaskDetailPanel } from './components/TaskDetail/TaskDetailPanel';
 import { SettingsPanel } from './components/Settings/SettingsPanel';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { Toast } from './components/Toast';
+import { UpdateBanner } from './components/UpdateBanner';
 import { HelpPanel } from './components/HelpPanel';
 import { GlobalSearch } from './components/GlobalSearch';
 import { NotesPanel } from './components/NotesPanel';
@@ -18,6 +19,7 @@ import { computeGanttRange } from './lib/ganttRange';
 import { dayWidth, diffDays, todayISO } from './lib/dates';
 import { pushBackup } from './lib/backup';
 import { notify } from './lib/notifications';
+import { getElectronAPI } from './lib/electronBridge';
 import type { ZoomLevel } from './types';
 
 const BACKUP_INTERVAL_MS = 15 * 60 * 1000;
@@ -74,6 +76,13 @@ function App() {
   const notificationsEnabled = useGanticStore((s) => s.notificationsEnabled);
   const notesPanelOpen = useGanticStore((s) => s.notesPanelOpen);
   const setNotesPanelOpen = useGanticStore((s) => s.setNotesPanelOpen);
+  const setUpdateStatus = useGanticStore((s) => s.setUpdateStatus);
+
+  useEffect(() => {
+    const electronAPI = getElectronAPI();
+    if (!electronAPI) return;
+    return electronAPI.onUpdateEvent(setUpdateStatus);
+  }, [setUpdateStatus]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -282,6 +291,7 @@ function App() {
       <HelpPanel />
       <GlobalSearch />
       <Toast />
+      <UpdateBanner />
     </div>
   );
 }
