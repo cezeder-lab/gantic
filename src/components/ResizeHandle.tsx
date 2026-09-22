@@ -12,12 +12,18 @@ export function ResizeHandle() {
       onMouseDown={(e) => {
         e.preventDefault();
         startRef.current = { x: e.clientX, width: tableWidth };
+        const prevCursor = document.body.style.cursor;
+        const prevUserSelect = document.body.style.userSelect;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
         const onMove = (ev: MouseEvent) => {
           setTableWidth(startRef.current.width + (ev.clientX - startRef.current.x));
         };
         const onUp = () => {
           window.removeEventListener('mousemove', onMove);
           window.removeEventListener('mouseup', onUp);
+          document.body.style.cursor = prevCursor;
+          document.body.style.userSelect = prevUserSelect;
         };
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);

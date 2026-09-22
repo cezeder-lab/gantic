@@ -12,6 +12,7 @@ import { DashboardView } from './components/Dashboard/DashboardView';
 import { Toast } from './components/Toast';
 import { HelpPanel } from './components/HelpPanel';
 import { GlobalSearch } from './components/GlobalSearch';
+import { NotesPanel } from './components/NotesPanel';
 import { useGanticStore } from './store/useGanticStore';
 import { computeGanttRange } from './lib/ganttRange';
 import { dayWidth, diffDays, todayISO } from './lib/dates';
@@ -52,6 +53,8 @@ function App() {
   const setSettingsOpen = useGanticStore((s) => s.setSettingsOpen);
   const closeTaskDetails = useGanticStore((s) => s.closeTaskDetails);
   const notificationsEnabled = useGanticStore((s) => s.notificationsEnabled);
+  const notesPanelOpen = useGanticStore((s) => s.notesPanelOpen);
+  const setNotesPanelOpen = useGanticStore((s) => s.setNotesPanelOpen);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -64,6 +67,7 @@ function App() {
         if (globalSearchOpen) setGlobalSearchOpen(false);
         else if (helpOpen) setHelpOpen(false);
         else if (settingsOpen) setSettingsOpen(false);
+        else if (notesPanelOpen) setNotesPanelOpen(false);
         else {
           closeTaskDetails();
           clearSelection();
@@ -129,6 +133,8 @@ function App() {
     setHelpOpen,
     settingsOpen,
     setSettingsOpen,
+    notesPanelOpen,
+    setNotesPanelOpen,
   ]);
 
   // Periodic local backup snapshot (desktop-friendly, works in-browser too).
@@ -232,13 +238,15 @@ function App() {
             {activeProjectId ? (
               <div id="print-root" ref={exportRootRef} className="relative flex min-h-0 flex-1">
                 <TaskTable ref={leftRef} onScroll={handleLeftScroll} />
-                <div className="print:hidden">
+                <div className="flex h-full print:hidden">
                   <ResizeHandle />
                 </div>
                 <GanttChart ref={rightRef} onScroll={handleRightScroll} scrollLeftRef={scrollLeftRef} />
                 <BulkActionBar />
               </div>
-            ) : (
+            ) : null}
+            {activeProjectId && <NotesPanel />}
+            {!activeProjectId && (
               <div className="flex flex-1 items-center justify-center text-gray-400">
                 Select or create a project to get started.
               </div>

@@ -28,3 +28,7 @@ export const TABLE_WIDTH =
   TABLE_COL_WIDTHS.status +
   TABLE_COL_WIDTHS.priority +
   40; // grip + gutter
+
+export const NOTES_PANEL_HEIGHT = 240;
+export const NOTES_PANEL_MIN_HEIGHT = 120;
+export const NOTES_PANEL_MAX_HEIGHT = 640;

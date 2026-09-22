@@ -103,7 +103,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
       className={clsx(
-        'group flex items-center border-b text-sm',
+        'group relative flex items-center border-b text-sm',
         isSelected ? 'bg-[#eef2ff]' : 'hover:bg-gray-50',
         dragOver === 'before' && 'border-t-2 border-t-[#4f7cff]',
         dragOver === 'after' && 'border-b-2 border-b-[#4f7cff]',
@@ -215,33 +215,38 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             isOverdue && 'text-red-600',
           )}
         />
+      </div>
 
-        <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-          <IconButton title="Open details" onClick={() => openTaskDetails(task.id)}>
-            ⤢
-          </IconButton>
-          <IconButton title="Add subtask" onClick={() => addTask({ parentId: task.id })} disabled={locked}>
-            +
-          </IconButton>
-          <IconButton title="Indent" onClick={() => indentTask(task.id)} disabled={locked}>
-            →
-          </IconButton>
-          <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={locked || !task.parentId}>
-            ←
-          </IconButton>
-          <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)}>
-            ⧉
-          </IconButton>
-          <IconButton
-            title={locked ? 'Unlock' : 'Lock'}
-            onClick={() => updateTask(task.id, { locked: !locked })}
-          >
-            {locked ? '🔓' : '🔒'}
-          </IconButton>
-          <IconButton title="Delete" onClick={() => deleteTask(task.id)} disabled={locked}>
-            ✕
-          </IconButton>
-        </div>
+      {/* Row-action toolbar: floats above the row on hover instead of squeezing
+         the name column inline, so it never truncates or covers the task name. */}
+      <div
+        className="pointer-events-none absolute top-0 z-30 flex -translate-y-full items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 py-1 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+        style={{ left: Math.min(6 + depth * 18, TABLE_COL_WIDTHS.name - 40) }}
+      >
+        <IconButton title="Open details" onClick={() => openTaskDetails(task.id)}>
+          ⤢
+        </IconButton>
+        <IconButton title="Add subtask" onClick={() => addTask({ parentId: task.id })} disabled={locked}>
+          +
+        </IconButton>
+        <IconButton title="Indent" onClick={() => indentTask(task.id)} disabled={locked}>
+          →
+        </IconButton>
+        <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={locked || !task.parentId}>
+          ←
+        </IconButton>
+        <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)}>
+          ⧉
+        </IconButton>
+        <IconButton
+          title={locked ? 'Unlock' : 'Lock'}
+          onClick={() => updateTask(task.id, { locked: !locked })}
+        >
+          {locked ? '🔓' : '🔒'}
+        </IconButton>
+        <IconButton title="Delete" onClick={() => deleteTask(task.id)} disabled={locked}>
+          ✕
+        </IconButton>
       </div>
 
       {visibleColumns.start && (

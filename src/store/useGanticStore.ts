@@ -21,7 +21,7 @@ import { addDays, diffDays, todayISO } from '../lib/dates';
 import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
 import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 import { cascadeDependents } from '../lib/cascade';
-import { TABLE_WIDTH } from '../lib/constants';
+import { TABLE_WIDTH, NOTES_PANEL_HEIGHT, NOTES_PANEL_MIN_HEIGHT, NOTES_PANEL_MAX_HEIGHT } from '../lib/constants';
 
 interface HistorySnapshot {
   projects: Project[];
@@ -61,6 +61,8 @@ interface GanticState {
   helpOpen: boolean;
   toast: Toast | null;
   notificationsEnabled: boolean;
+  notesPanelOpen: boolean;
+  notesPanelHeight: number;
 
   // Projects
   createProject: (name: string) => string;
@@ -133,6 +135,9 @@ interface GanticState {
   showToast: (message: string, onUndo?: () => void) => void;
   dismissToast: () => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  toggleNotesPanel: () => void;
+  setNotesPanelOpen: (open: boolean) => void;
+  setNotesPanelHeight: (height: number) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -261,6 +266,8 @@ export const useGanticStore = create<GanticState>()(
       helpOpen: false,
       toast: null,
       notificationsEnabled: false,
+      notesPanelOpen: false,
+      notesPanelHeight: NOTES_PANEL_HEIGHT,
 
       createProject: (name) => {
         recordHistory(get, set);
@@ -868,6 +875,10 @@ export const useGanticStore = create<GanticState>()(
       showToast: (message, onUndo) => set({ toast: { id: ++toastCounter, message, onUndo } }),
       dismissToast: () => set({ toast: null }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+      toggleNotesPanel: () => set((s) => ({ notesPanelOpen: !s.notesPanelOpen })),
+      setNotesPanelOpen: (open) => set({ notesPanelOpen: open }),
+      setNotesPanelHeight: (height) =>
+        set({ notesPanelHeight: Math.min(NOTES_PANEL_MAX_HEIGHT, Math.max(NOTES_PANEL_MIN_HEIGHT, height)) }),
 
       undo: () => {
         set((s) => {
@@ -908,6 +919,7 @@ export const useGanticStore = create<GanticState>()(
           globalSearchOpen: _globalSearchOpen,
           helpOpen: _helpOpen,
           toast: _toast,
+          notesPanelOpen: _notesPanelOpen,
           ...rest
         } = state;
         return rest;
@@ -934,6 +946,7 @@ export const useGanticStore = create<GanticState>()(
           tableWidth: state.tableWidth ?? TABLE_WIDTH,
           compactView: state.compactView ?? false,
           notificationsEnabled: state.notificationsEnabled ?? false,
+          notesPanelHeight: state.notesPanelHeight ?? NOTES_PANEL_HEIGHT,
           projects: (state.projects ?? []).map(
             (p) =>
               ({

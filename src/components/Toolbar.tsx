@@ -50,10 +50,11 @@ export function Toolbar({
   const setHelpOpen = useGanticStore((s) => s.setHelpOpen);
   const language = useGanticStore((s) => s.language);
   const setLanguage = useGanticStore((s) => s.setLanguage);
+  const notesPanelOpen = useGanticStore((s) => s.notesPanelOpen);
+  const toggleNotesPanel = useGanticStore((s) => s.toggleNotesPanel);
   const t = useT();
 
   const [teamOpen, setTeamOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -132,17 +133,18 @@ export function Toolbar({
           )}
 
           {project && (
-            <div className="relative">
-              <button
-                onClick={() => setNotesOpen((v) => !v)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Notes
-              </button>
-              {notesOpen && (
-                <NotesPopover projectId={project.id} notes={project.notes} onClose={() => setNotesOpen(false)} />
+            <button
+              onClick={toggleNotesPanel}
+              title="Open the notes panel, dockable and resizable at the bottom"
+              className={clsx(
+                'rounded-md border px-3 py-1.5 text-sm font-medium',
+                notesPanelOpen
+                  ? 'border-[#4f7cff] bg-[#eef2ff] text-[#4f7cff]'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50',
               )}
-            </div>
+            >
+              Notes
+            </button>
           )}
 
           <button
@@ -360,42 +362,6 @@ function IconBtn({
     >
       {children}
     </button>
-  );
-}
-
-function NotesPopover({
-  projectId,
-  notes,
-  onClose,
-}: {
-  projectId: string;
-  notes: string;
-  onClose: () => void;
-}) {
-  const setProjectNotes = useGanticStore((s) => s.setProjectNotes);
-  const [value, setValue] = useState(notes);
-
-  return (
-    <>
-      <div className="fixed inset-0 z-20" onClick={onClose} />
-      <div
-        className="absolute right-0 top-10 z-30 w-80 rounded-md border border-gray-200 bg-white p-3 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Project notes
-        </h3>
-        <textarea
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={() => setProjectNotes(projectId, value)}
-          placeholder="Free-form notes or to-dos for this project…"
-          rows={8}
-          className="w-full resize-none rounded-md border border-gray-200 p-2 text-sm text-gray-700 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
-        />
-      </div>
-    </>
   );
 }
 
