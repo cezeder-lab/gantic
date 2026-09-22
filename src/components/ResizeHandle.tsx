@@ -8,7 +8,7 @@ export function ResizeHandle() {
 
   return (
     <div
-      className="group/handle relative w-1 shrink-0 cursor-col-resize bg-gray-200"
+      className="group/handle relative w-1 shrink-0 cursor-col-resize bg-gray-200 dark:bg-gray-600"
       onMouseDown={(e) => {
         e.preventDefault();
         startRef.current = { x: e.clientX, width: tableWidth };

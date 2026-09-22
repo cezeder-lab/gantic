@@ -104,10 +104,10 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
       }}
       className={clsx(
         'group relative flex items-center border-b text-sm',
-        isSelected ? 'bg-[#eef2ff]' : 'hover:bg-gray-50',
+        isSelected ? 'bg-[#eef2ff] dark:bg-[#1e2a4a]' : 'hover:bg-gray-50 dark:hover:bg-gray-800',
         dragOver === 'before' && 'border-t-2 border-t-[#4f7cff]',
         dragOver === 'after' && 'border-b-2 border-b-[#4f7cff]',
-        dragOver === null && 'border-gray-100',
+        dragOver === null && 'border-gray-100 dark:border-gray-800',
       )}
       style={{ height: rowHeight }}
       onClick={handleRowClick}
@@ -120,7 +120,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
         className="flex shrink-0 items-center gap-1 overflow-hidden pl-1"
         style={{ width: TABLE_COL_WIDTHS.name, paddingLeft: 6 + depth * 18 }}
       >
-        <span className="shrink-0 cursor-grab text-[10px] text-gray-300" title="Drag to reorder">
+        <span className="shrink-0 cursor-grab text-[10px] text-gray-300 dark:text-gray-600" title="Drag to reorder">
           ⠿
         </span>
         <input
@@ -141,7 +141,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             toggleInSelection(task.id);
           }}
           title="Select for bulk actions (Shift-click for a range)"
-          className="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-[#4f7cff] focus:ring-[#4f7cff]"
+          className="h-3.5 w-3.5 shrink-0 rounded border-gray-300 dark:border-gray-600 text-[#4f7cff] focus:ring-[#4f7cff]"
         />
         <button
           onClick={(e) => {
@@ -149,7 +149,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             toggleCollapse(task.id);
           }}
           className={clsx(
-            'flex h-4 w-4 shrink-0 items-center justify-center text-gray-400',
+            'flex h-4 w-4 shrink-0 items-center justify-center text-gray-400 dark:text-gray-500',
             !hasChildren && 'invisible',
           )}
         >
@@ -166,7 +166,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               e.stopPropagation();
               setColorPickerOpen((v) => !v);
             }}
-            className="block h-2.5 w-2.5 rounded-full ring-offset-1 hover:ring-2 hover:ring-gray-300"
+            className="block h-2.5 w-2.5 rounded-full ring-offset-1 hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"
             style={{ backgroundColor: task.color }}
             title="Change color"
           />
@@ -174,7 +174,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             <>
               <div className="fixed inset-0 z-20" onClick={() => setColorPickerOpen(false)} />
               <div
-                className="absolute left-0 top-5 z-30 flex w-32 flex-wrap gap-1.5 rounded-md border border-gray-200 bg-white p-2 shadow-lg"
+                className="absolute left-0 top-5 z-30 flex w-32 flex-wrap gap-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 shadow-lg"
                 onClick={(e) => e.stopPropagation()}
               >
                 {TASK_COLORS.map((c) => (
@@ -196,7 +196,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           )}
         </span>
         {locked && (
-          <span className="shrink-0 text-[10px] text-gray-400" title="Locked">
+          <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500" title="Locked">
             🔒
           </span>
         )}
@@ -210,8 +210,8 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           }}
           onClick={(e) => e.stopPropagation()}
           className={clsx(
-            'min-w-0 flex-1 truncate bg-transparent px-1 py-0.5 text-sm outline-none focus:rounded focus:bg-white focus:ring-1 focus:ring-blue-300 disabled:text-gray-400',
-            hasChildren && 'font-semibold text-gray-800',
+            'min-w-0 flex-1 truncate bg-transparent px-1 py-0.5 text-sm outline-none focus:rounded focus:bg-white dark:focus:bg-gray-800 focus:ring-1 focus:ring-blue-300 disabled:text-gray-400 dark:disabled:text-gray-500',
+            hasChildren && 'font-semibold text-gray-800 dark:text-gray-100',
             isOverdue && 'text-red-600',
           )}
         />
@@ -220,7 +220,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
       {/* Row-action toolbar: floats above the row on hover instead of squeezing
          the name column inline, so it never truncates or covers the task name. */}
       <div
-        className="pointer-events-none absolute top-0 z-30 flex -translate-y-full items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 py-1 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+        className="pointer-events-none absolute top-0 z-30 flex -translate-y-full items-center gap-0.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-1 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
         style={{ left: Math.min(6 + depth * 18, TABLE_COL_WIDTHS.name - 40) }}
       >
         <IconButton title="Open details" onClick={() => openTaskDetails(task.id)}>
@@ -262,8 +262,8 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               updateTask(task.id, { start: newStart, end: newEnd });
             }}
             className={clsx(
-              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300',
-              isOverdue ? 'text-red-600' : 'text-gray-600',
+              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600',
+              isOverdue ? 'text-red-600' : 'text-gray-600 dark:text-gray-300',
             )}
           />
         </Cell>
@@ -281,8 +281,8 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               updateTask(task.id, { end: newEnd < task.start ? task.start : newEnd });
             }}
             className={clsx(
-              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300',
-              isOverdue ? 'text-red-600 font-medium' : 'text-gray-600',
+              'w-full max-w-[86px] rounded border-none bg-transparent text-center text-xs outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600',
+              isOverdue ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300',
             )}
           />
         </Cell>
@@ -297,9 +297,9 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               value={duration}
               disabled={locked}
               onChange={(e) => handleDurationChange(Math.max(0, Number(e.target.value) || 0))}
-              className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+              className="w-10 rounded border-none bg-transparent text-center text-xs text-gray-600 dark:text-gray-300 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
             />
-            {duration >= 7 && <span className="text-[9px] text-gray-400">{formatDuration(duration)}</span>}
+            {duration >= 7 && <span className="text-[9px] text-gray-400 dark:text-gray-500">{formatDuration(duration)}</span>}
           </div>
         </Cell>
       )}
@@ -307,7 +307,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
       {visibleColumns.progress && (
         <Cell width={TABLE_COL_WIDTHS.progress}>
           <div className="flex w-[84px] items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-            <div className="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
               <div className="h-full rounded-full bg-[#4f7cff]" style={{ width: `${task.progress}%` }} />
             </div>
             <input
@@ -319,9 +319,9 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               onChange={(e) =>
                 updateTask(task.id, { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
               }
-              className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 outline-none focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+              className="w-9 shrink-0 rounded border-none bg-transparent text-right text-xs text-gray-500 dark:text-gray-400 outline-none focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
             />
-            <span className="shrink-0 text-[10px] text-gray-400">%</span>
+            <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">%</span>
           </div>
         </Cell>
       )}
@@ -333,7 +333,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             disabled={locked}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
-            className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+            className="w-full max-w-[100px] rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 dark:text-gray-300 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
           >
             <option value="">—</option>
             {members.map((m) => (
@@ -359,7 +359,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               value={task.status}
               disabled={locked}
               onChange={(e) => updateTask(task.id, { status: e.target.value as Task['status'] })}
-              className="w-full max-w-[92px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+              className="w-full max-w-[92px] rounded border-none bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
             >
               {TASK_STATUSES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -382,7 +382,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
               value={task.priority}
               disabled={locked}
               onChange={(e) => updateTask(task.id, { priority: e.target.value as Task['priority'] })}
-              className="w-full max-w-[70px] rounded border-none bg-transparent text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+              className="w-full max-w-[70px] rounded border-none bg-transparent text-xs text-gray-600 dark:text-gray-300 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
             >
               {TASK_PRIORITIES.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -401,7 +401,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             disabled={locked}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => updateTask(task.id, { customFields: { ...task.customFields, [field]: e.target.value } })}
-            className="w-full rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 outline-none hover:bg-gray-100 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300"
+            className="w-full rounded border-none bg-transparent px-1 text-center text-xs text-gray-600 dark:text-gray-300 outline-none hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-300 disabled:text-gray-300 dark:disabled:text-gray-600"
           />
         </Cell>
       ))}
@@ -436,7 +436,7 @@ function IconButton({
         e.stopPropagation();
         onClick();
       }}
-      className="flex h-5 w-5 items-center justify-center rounded text-[10px] text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-30"
+      className="flex h-5 w-5 items-center justify-center rounded text-[10px] text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30"
     >
       {children}
     </button>

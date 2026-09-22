@@ -3,7 +3,6 @@ import { useGanticStore } from '../../store/useGanticStore';
 import { PROJECT_COLORS } from '../../types';
 import clsx from 'clsx';
 import { NewProjectDialog } from './NewProjectDialog';
-import { useT } from '../../lib/i18n';
 
 export function ProjectSidebar() {
   const projects = useGanticStore((s) => s.projects);
@@ -20,7 +19,6 @@ export function ProjectSidebar() {
   const toggleArchiveProject = useGanticStore((s) => s.toggleArchiveProject);
   const showArchived = useGanticStore((s) => s.showArchived);
   const toggleShowArchived = useGanticStore((s) => s.toggleShowArchived);
-  const t = useT();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -43,12 +41,12 @@ export function ProjectSidebar() {
   };
 
   return (
-    <div className="flex h-full w-60 shrink-0 flex-col border-r border-gray-200 bg-[#fafbfc]">
+    <div className="flex h-full w-60 shrink-0 flex-col border-r border-gray-200 dark:border-gray-700 bg-[#fafbfc] dark:bg-gray-900">
       <div className="flex items-center gap-2 px-4 py-4">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#4f7cff] text-sm font-bold text-white">
           G
         </div>
-        <span className="text-[15px] font-semibold text-gray-800">Gantic</span>
+        <span className="text-[15px] font-semibold text-gray-800 dark:text-gray-100">Gantic</span>
       </div>
 
       <div className="px-2 pb-2">
@@ -56,19 +54,19 @@ export function ProjectSidebar() {
           onClick={() => setViewMode('dashboard')}
           className={clsx(
             'flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm',
-            viewMode === 'dashboard' ? 'bg-[#e8edff] font-medium text-[#2f4bd1]' : 'text-gray-700 hover:bg-gray-100',
+            viewMode === 'dashboard' ? 'bg-[#e8edff] font-medium text-[#2f4bd1] dark:bg-[#1c2a52] dark:text-[#9db4ff]' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700',
           )}
         >
-          <span className="text-base leading-none">📊</span> {t('dashboard')}
+          <span className="text-base leading-none">📊</span> Dashboard
         </button>
       </div>
 
       <div className="flex items-center justify-between px-4 pb-2 pt-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('projects')}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Projects</span>
         <button
           onClick={() => setNewProjectOpen(true)}
-          title={t('newProject')}
-          className="flex h-5 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+          title="New project"
+          className="flex h-5 w-5 items-center justify-center rounded text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200"
         >
           +
         </button>
@@ -83,7 +81,7 @@ export function ProjectSidebar() {
               key={p.id}
               className={clsx(
                 'group relative mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm cursor-pointer',
-                isActive ? 'bg-[#e8edff] text-[#2f4bd1] font-medium' : 'text-gray-700 hover:bg-gray-100',
+                isActive ? 'bg-[#e8edff] text-[#2f4bd1] font-medium dark:bg-[#1c2a52] dark:text-[#9db4ff]' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700',
                 p.archived && 'opacity-50',
               )}
               onClick={() => {
@@ -96,7 +94,7 @@ export function ProjectSidebar() {
                 style={{ backgroundColor: p.color }}
               />
               {p.pinned && (
-                <span className="shrink-0 text-[10px]" title={t('pin')}>
+                <span className="shrink-0 text-[10px]" title="Pin">
                   📌
                 </span>
               )}
@@ -111,7 +109,7 @@ export function ProjectSidebar() {
                     if (e.key === 'Escape') setEditingId(null);
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="min-w-0 flex-1 rounded border border-blue-300 bg-white px-1 py-0.5 text-sm outline-none"
+                  className="min-w-0 flex-1 rounded border border-blue-300 bg-white dark:bg-gray-800 px-1 py-0.5 text-sm outline-none"
                 />
               ) : (
                 <span className="min-w-0 flex-1 truncate" onDoubleClick={() => startEdit(p.id, p.name)}>
@@ -123,60 +121,60 @@ export function ProjectSidebar() {
                   e.stopPropagation();
                   setMenuId(menuId === p.id ? null : p.id);
                 }}
-                className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 group-hover:flex"
+                className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 group-hover:flex"
               >
                 ⋯
               </button>
 
               {menuId === p.id && (
                 <div
-                  className="absolute right-1 top-9 z-20 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+                  className="absolute right-1 top-9 z-20 w-44 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 shadow-lg"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => startEdit(p.id, p.name)}
                   >
-                    {t('rename')}
+                    Rename
                   </button>
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => {
                       duplicateProject(p.id);
                       setMenuId(null);
                     }}
                   >
-                    {t('duplicate')}
+                    Duplicate
                   </button>
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => {
                       const name = prompt('Template name:', p.name);
                       if (name) saveAsTemplate(p.id, name);
                       setMenuId(null);
                     }}
                   >
-                    {t('saveAsTemplate')}
+                    Save as template
                   </button>
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => {
                       togglePinProject(p.id);
                       setMenuId(null);
                     }}
                   >
-                    {p.pinned ? t('unpin') : t('pin')}
+                    {p.pinned ? 'Unpin' : 'Pin'}
                   </button>
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => {
                       toggleArchiveProject(p.id);
                       setMenuId(null);
                     }}
                   >
-                    {p.archived ? t('unarchive') : t('archive')}
+                    {p.archived ? 'Unarchive' : 'Archive'}
                   </button>
-                  <div className="my-1 border-t border-gray-100" />
+                  <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                   <div className="flex items-center gap-1.5 px-3 py-1.5">
                     {PROJECT_COLORS.map((c) => (
                       <button
@@ -190,15 +188,15 @@ export function ProjectSidebar() {
                       />
                     ))}
                   </div>
-                  <div className="my-1 border-t border-gray-100" />
+                  <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                   <button
-                    className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+                    className="block w-full px-3 py-1.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                     onClick={() => {
                       if (confirm(`Delete project "${p.name}"?`)) deleteProject(p.id);
                       setMenuId(null);
                     }}
                   >
-                    {t('delete')}
+                    Delete
                   </button>
                 </div>
               )}
@@ -207,19 +205,19 @@ export function ProjectSidebar() {
         })}
 
         {visibleProjects.length === 0 && (
-          <p className="px-2 py-4 text-center text-sm text-gray-400">{t('noProjectsYet')}</p>
+          <p className="px-2 py-4 text-center text-sm text-gray-400 dark:text-gray-500">No projects yet. Create one!</p>
         )}
       </div>
 
       {projects.some((p) => p.archived) && (
-        <label className="flex items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-xs text-gray-500">
+        <label className="flex items-center gap-2 border-t border-gray-100 dark:border-gray-800 px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={toggleShowArchived}
-            className="h-3.5 w-3.5 rounded border-gray-300 text-[#4f7cff] focus:ring-[#4f7cff]"
+            className="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 text-[#4f7cff] focus:ring-[#4f7cff]"
           />
-          {t('showArchived')}
+          Show archived
         </label>
       )}
     </div>

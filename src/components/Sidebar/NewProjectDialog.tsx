@@ -24,12 +24,12 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-gray-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-800">New project</h2>
+      <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">New project</h2>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
           >
             ✕
           </button>
@@ -37,7 +37,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
 
         <div className="px-5 py-4">
           <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               Project name
             </span>
             <input
@@ -45,18 +45,18 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setName(e.target.value)}
               placeholder="New project"
               autoFocus
-              className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+              className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
             />
           </label>
 
           <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               Start from
             </span>
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+              className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
             >
               <option value="">Blank project</option>
               {templates.map((t) => (
@@ -70,14 +70,14 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           {templateId && (
             <>
               <label className="mb-1 block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                   Start date
                 </span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+                  className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
                 />
               </label>
               <button
@@ -87,7 +87,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
                     setTemplateId('');
                   }
                 }}
-                className="mt-1 text-xs text-red-500 hover:underline"
+                className="mt-1 text-xs text-red-500 dark:text-red-400 hover:underline"
               >
                 Delete this template
               </button>
@@ -95,10 +95,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">
+        <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 px-5 py-3">
           <button
             onClick={onClose}
-            className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="rounded-md border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

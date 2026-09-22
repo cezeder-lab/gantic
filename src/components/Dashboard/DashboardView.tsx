@@ -9,6 +9,7 @@ export function DashboardView() {
   const setActiveProject = useGanticStore((s) => s.setActiveProject);
   const setViewMode = useGanticStore((s) => s.setViewMode);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
+  const setGlobalSearchOpen = useGanticStore((s) => s.setGlobalSearchOpen);
 
   const today = todayISO();
 
@@ -37,15 +38,24 @@ export function DashboardView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#fafbfc] px-8 py-6">
-      <h1 className="mb-1 text-xl font-semibold text-gray-800">Dashboard</h1>
-      <p className="mb-6 text-sm text-gray-500">Nearest deadlines across all projects.</p>
+    <div className="flex-1 overflow-y-auto bg-[#fafbfc] dark:bg-gray-900 px-8 py-6">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Dashboard</h1>
+        <button
+          onClick={() => setGlobalSearchOpen(true)}
+          title="Search all projects (Ctrl+K)"
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          🔍 Search all projects
+        </button>
+      </div>
+      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">Nearest deadlines across all projects.</p>
 
-      {cards.length === 0 && <p className="text-sm text-gray-400">No projects yet.</p>}
+      {cards.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-500">No projects yet.</p>}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map(({ project, upcoming, overdueCount, openCount }) => (
-          <div key={project.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div key={project.id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
             <button
               onClick={() => {
                 setActiveProject(project.id);
@@ -54,18 +64,18 @@ export function DashboardView() {
               className="mb-3 flex w-full items-center gap-2 text-left"
             >
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: project.color }} />
-              <h2 className="min-w-0 flex-1 truncate font-semibold text-gray-800 hover:underline">
+              <h2 className="min-w-0 flex-1 truncate font-semibold text-gray-800 dark:text-gray-100 hover:underline">
                 {project.name}
               </h2>
               {overdueCount > 0 && (
-                <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
+                <span className="shrink-0 rounded-full bg-red-50 dark:bg-red-950 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
                   {overdueCount} overdue
                 </span>
               )}
             </button>
 
             {openCount === 0 ? (
-              <p className="text-sm text-gray-400">Nothing open — all caught up.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Nothing open — all caught up.</p>
             ) : (
               <ul className="space-y-1.5">
                 {upcoming.map((task) => {
@@ -76,13 +86,13 @@ export function DashboardView() {
                     <li key={task.id}>
                       <button
                         onClick={() => openTask(project.id, task.id)}
-                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-gray-50"
+                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: statusColor }} />
-                        <span className="min-w-0 flex-1 truncate text-gray-700">{task.name}</span>
-                        <span className="shrink-0 text-xs text-gray-400">{task.assignee || '—'}</span>
+                        <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{task.name}</span>
+                        <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{task.assignee || '—'}</span>
                         <span
-                          className={`shrink-0 text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}
+                          className={`shrink-0 text-xs font-medium ${isOverdue ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}
                         >
                           {isOverdue ? `${formatShortDate(task.end)} · overdue` : `${formatShortDate(task.end)} · ${days}d`}
                         </span>

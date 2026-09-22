@@ -84,7 +84,7 @@ ipcMain.handle('data:chooseFolder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showOpenDialog(win, {
     properties: ['openDirectory', 'createDirectory'],
-    title: 'Choisir le dossier de sauvegarde des projets Gantic',
+    title: "Choose Gantic's project data folder",
   });
   if (result.canceled || result.filePaths.length === 0) return null;
 

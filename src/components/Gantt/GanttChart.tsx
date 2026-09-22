@@ -140,7 +140,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-gray-900">
       <div
         ref={ref}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
@@ -155,7 +155,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
             {specialDayStripes.map((s) => (
               <div
                 key={s.key}
-                className={s.holiday ? 'absolute top-0 bg-orange-50' : 'absolute top-0 bg-gray-50'}
+                className={s.holiday ? 'absolute top-0 bg-orange-50 dark:bg-orange-950' : 'absolute top-0 bg-gray-50 dark:bg-gray-800'}
                 style={{ left: s.left, width: pxPerDay, height: totalHeight }}
               />
             ))}
@@ -163,11 +163,11 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
             {subGridLines.map((line) => (
               <div
                 key={line.key}
-                className="pointer-events-none absolute top-0 border-l border-gray-100"
+                className="pointer-events-none absolute top-0 border-l border-gray-100 dark:border-gray-800"
                 style={{ left: line.left, height: totalHeight }}
               >
                 {line.label && (
-                  <span className="absolute left-1 top-0.5 text-[9px] font-medium text-gray-300">
+                  <span className="absolute left-1 top-0.5 text-[9px] font-medium text-gray-300 dark:text-gray-600">
                     {line.label}
                   </span>
                 )}
@@ -177,7 +177,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
             {rows.map((_, idx) => (
               <div
                 key={idx}
-                className="absolute left-0 border-b border-gray-100"
+                className="absolute left-0 border-b border-gray-100 dark:border-gray-800"
                 style={{ top: idx * rowHeight, height: rowHeight, width: totalWidth }}
               />
             ))}

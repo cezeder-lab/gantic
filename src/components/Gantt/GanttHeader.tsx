@@ -131,14 +131,14 @@ export function GanttHeader({
 
   return (
     <div
-      className="sticky top-0 z-20 border-b border-gray-200 bg-[#f7f8fa]"
+      className="sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700 bg-[#f7f8fa] dark:bg-gray-800"
       style={{ width: totalWidth, height: HEADER_ROW_HEIGHT * 2 }}
     >
-      <div className="relative border-b border-gray-100" style={{ height: HEADER_ROW_HEIGHT }}>
+      <div className="relative border-b border-gray-100 dark:border-gray-800" style={{ height: HEADER_ROW_HEIGHT }}>
         {top.map((seg) => (
           <div
             key={seg.key}
-            className="absolute top-0 flex items-center border-r border-gray-100 pl-2 text-[11px] font-semibold text-gray-500"
+            className="absolute top-0 flex items-center border-r border-gray-100 dark:border-gray-800 pl-2 text-[11px] font-semibold text-gray-500 dark:text-gray-400"
             style={{ left: seg.left, width: seg.width, height: HEADER_ROW_HEIGHT }}
           >
             {seg.label}
@@ -149,8 +149,8 @@ export function GanttHeader({
         {bottom.map((seg) => (
           <div
             key={seg.key}
-            className={`absolute top-0 flex items-center justify-center border-r border-gray-100 text-[11px] ${
-              seg.isToday ? 'font-bold text-[#ef5c6e]' : seg.weekend ? 'text-gray-300' : 'text-gray-500'
+            className={`absolute top-0 flex items-center justify-center border-r border-gray-100 dark:border-gray-800 text-[11px] ${
+              seg.isToday ? 'font-bold text-[#ef5c6e]' : seg.weekend ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'
             }`}
             style={{ left: seg.left, width: seg.width, height: HEADER_ROW_HEIGHT }}
           >

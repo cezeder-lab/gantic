@@ -2,10 +2,10 @@ import { useRef, useState } from 'react';
 import { useGanticStore } from '../store/useGanticStore';
 
 const FONT_SIZES: { value: string; label: string }[] = [
-  { value: '2', label: 'Petit' },
+  { value: '2', label: 'Small' },
   { value: '3', label: 'Normal' },
-  { value: '5', label: 'Grand' },
-  { value: '7', label: 'Très grand' },
+  { value: '5', label: 'Large' },
+  { value: '7', label: 'Huge' },
 ];
 
 /** Notes saved before rich-text support are plain text — escape anything
@@ -124,47 +124,47 @@ function NotesPanelContent({
 
   return (
     <div
-      className="flex shrink-0 flex-col border-t border-gray-200 bg-white print:hidden"
+      className="flex shrink-0 flex-col border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 print:hidden"
       style={{ height: notesPanelHeight }}
     >
       <div
-        className="group/handle relative h-1 shrink-0 cursor-row-resize bg-gray-200"
+        className="group/handle relative h-1 shrink-0 cursor-row-resize bg-gray-200 dark:bg-gray-600"
         onMouseDown={beginResize}
       >
         <div className="absolute inset-x-0 -top-1 -bottom-1 group-hover/handle:bg-[#4f7cff]/30" />
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <div className="flex shrink-0 items-center justify-between border-b border-gray-100 dark:border-gray-800 px-4 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
           Notes — {projectName}
         </h3>
         <button
           onClick={() => setNotesPanelOpen(false)}
-          className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+          className="flex h-6 w-6 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
           title="Close"
         >
           ✕
         </button>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 px-3 py-1.5">
-        <ToolbarButton title="Gras" onClick={() => exec('bold')}>
-          <b>G</b>
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 dark:border-gray-800 px-3 py-1.5">
+        <ToolbarButton title="Bold" onClick={() => exec('bold')}>
+          <b>B</b>
         </ToolbarButton>
-        <ToolbarButton title="Souligné" onClick={() => exec('underline')}>
-          <u>S</u>
+        <ToolbarButton title="Underline" onClick={() => exec('underline')}>
+          <u>U</u>
         </ToolbarButton>
 
-        <div className="mx-1 h-4 w-px bg-gray-200" />
+        <div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
 
-        <ToolbarButton title="Insérer une case à cocher" onClick={() => exec('insertText', '☐ ')}>
+        <ToolbarButton title="Insert a checkbox" onClick={() => exec('insertText', '☐ ')}>
           ☐
         </ToolbarButton>
-        <ToolbarButton title="Insérer un point d'exclamation" onClick={() => exec('insertText', '❗ ')}>
+        <ToolbarButton title="Insert an exclamation mark" onClick={() => exec('insertText', '❗ ')}>
           ❗
         </ToolbarButton>
 
-        <div className="mx-1 h-4 w-px bg-gray-200" />
+        <div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
 
         <select
           defaultValue=""
@@ -173,11 +173,11 @@ function NotesPanelContent({
             if (e.target.value) execWithRestoredSelection('fontSize', e.target.value);
             e.target.value = '';
           }}
-          title="Taille du texte"
-          className="rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-600 outline-none"
+          title="Text size"
+          className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1.5 py-1 text-xs text-gray-600 dark:text-gray-300 outline-none"
         >
           <option value="" disabled>
-            Taille…
+            Size…
           </option>
           {FONT_SIZES.map((f) => (
             <option key={f.value} value={f.value}>
@@ -191,15 +191,15 @@ function NotesPanelContent({
           defaultValue="#20242c"
           onMouseDown={saveSelection}
           onChange={(e) => execWithRestoredSelection('foreColor', e.target.value)}
-          title="Couleur du texte"
-          className="h-6 w-7 cursor-pointer rounded border border-gray-200 p-0.5"
+          title="Text color"
+          className="h-6 w-7 cursor-pointer rounded border border-gray-200 dark:border-gray-700 p-0.5"
         />
       </div>
 
       <div className="relative min-h-0 flex-1">
         {isEmpty && (
-          <span className="pointer-events-none absolute left-4 top-4 text-sm text-gray-400">
-            Notes libres, to-do, points à suivre pour ce projet…
+          <span className="pointer-events-none absolute left-4 top-4 text-sm text-gray-400 dark:text-gray-500">
+            Free-form notes, to-dos, things to track for this project…
           </span>
         )}
         <div
@@ -210,7 +210,7 @@ function NotesPanelContent({
           onBlur={commit}
           onClick={handleEditorClick}
           dangerouslySetInnerHTML={{ __html: initialHtmlRef.current }}
-          className="h-full min-h-0 overflow-y-auto p-4 text-sm text-gray-700 outline-none"
+          className="h-full min-h-0 overflow-y-auto p-4 text-sm text-gray-700 dark:text-gray-200 outline-none"
         />
       </div>
     </div>
@@ -232,7 +232,7 @@ function ToolbarButton({
       title={title}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded text-xs font-semibold text-gray-600 hover:bg-gray-100"
+      className="flex h-6 w-6 items-center justify-center rounded text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
     >
       {children}
     </button>

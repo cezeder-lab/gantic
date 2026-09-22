@@ -30,7 +30,7 @@ export function Toast() {
         )}
         <button
           onClick={dismissToast}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400 dark:text-gray-500 hover:text-white"
           title="Dismiss"
         >
           ✕

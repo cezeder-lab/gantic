@@ -4,7 +4,6 @@ import type {
   Attachment,
   ColumnVisibility,
   DependencyType,
-  Language,
   Project,
   ProjectTemplate,
   Task,
@@ -54,7 +53,7 @@ interface GanticState {
   templates: ProjectTemplate[];
   past: HistorySnapshot[];
   future: HistorySnapshot[];
-  language: Language;
+  darkMode: boolean;
   showArchived: boolean;
   tableWidth: number;
   compactView: boolean;
@@ -127,7 +126,7 @@ interface GanticState {
   toggleColumn: (column: keyof ColumnVisibility) => void;
   setSettingsOpen: (open: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
-  setLanguage: (language: Language) => void;
+  toggleDarkMode: () => void;
   toggleShowArchived: () => void;
   setTableWidth: (width: number) => void;
   toggleCompactView: () => void;
@@ -259,7 +258,7 @@ export const useGanticStore = create<GanticState>()(
       templates: [],
       past: [],
       future: [],
-      language: 'en',
+      darkMode: false,
       showArchived: false,
       tableWidth: TABLE_WIDTH,
       compactView: false,
@@ -867,7 +866,7 @@ export const useGanticStore = create<GanticState>()(
         set((s) => ({ visibleColumns: { ...s.visibleColumns, [column]: !s.visibleColumns[column] } })),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setViewMode: (mode) => set({ viewMode: mode }),
-      setLanguage: (language) => set({ language }),
+      toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
       toggleShowArchived: () => set((s) => ({ showArchived: !s.showArchived })),
       setTableWidth: (width) => set({ tableWidth: Math.min(900, Math.max(320, width)) }),
       toggleCompactView: () => set((s) => ({ compactView: !s.compactView })),
@@ -943,7 +942,7 @@ export const useGanticStore = create<GanticState>()(
           templates: state.templates ?? [],
           viewMode: state.viewMode ?? 'project',
           selectedTaskIds: state.selectedTaskIds ?? [],
-          language: state.language ?? 'en',
+          darkMode: state.darkMode ?? false,
           showArchived: state.showArchived ?? false,
           tableWidth: state.tableWidth ?? TABLE_WIDTH,
           compactView: state.compactView ?? false,

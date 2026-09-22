@@ -36,28 +36,28 @@ export function GlobalSearch() {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setGlobalSearchOpen(false)} />
-      <div className="fixed left-1/2 top-24 z-50 w-[520px] -translate-x-1/2 rounded-lg border border-gray-200 bg-white shadow-2xl">
+      <div className="fixed left-1/2 top-24 z-50 w-[520px] -translate-x-1/2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl">
         <input
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setGlobalSearchOpen(false)}
           placeholder="Search all projects…"
-          className="w-full border-b border-gray-100 px-4 py-3 text-sm outline-none"
+          className="w-full border-b border-gray-100 dark:border-gray-800 px-4 py-3 text-sm outline-none"
         />
         <div className="max-h-[50vh] overflow-y-auto py-1">
           {query.trim() && results.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-gray-400">No tasks match "{query}"</p>
+            <p className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">No tasks match "{query}"</p>
           )}
           {results.map(({ task, project }) => (
             <button
               key={task.id}
               onClick={() => goTo(project!.id, task.id)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-50"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
-              <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{task.name}</span>
-              <span className="shrink-0 text-xs text-gray-400">{project!.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{task.name}</span>
+              <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{project!.name}</span>
             </button>
           ))}
         </div>

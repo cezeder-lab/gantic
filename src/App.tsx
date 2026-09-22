@@ -49,7 +49,12 @@ function App() {
   const tasks = useGanticStore((s) => s.tasks);
   const projects = useGanticStore((s) => s.projects);
   const zoom = useGanticStore((s) => s.zoom);
+  const darkMode = useGanticStore((s) => s.darkMode);
   const project = useGanticStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
   const undo = useGanticStore((s) => s.undo);
   const redo = useGanticStore((s) => s.redo);
   const setFitToScreen = useGanticStore((s) => s.setFitToScreen);
@@ -233,11 +238,11 @@ function App() {
   };
 
   if (!hydrated) {
-    return <div className="flex h-screen w-screen items-center justify-center bg-white text-sm text-gray-400">Loading…</div>;
+    return <div className="flex h-screen w-screen items-center justify-center bg-white dark:bg-gray-900 text-sm text-gray-400 dark:text-gray-500">Loading…</div>;
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-gray-800">
+    <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100">
       <div className="print:hidden">
         <ProjectSidebar />
       </div>
@@ -265,7 +270,7 @@ function App() {
             ) : null}
             {activeProjectId && <NotesPanel />}
             {!activeProjectId && (
-              <div className="flex flex-1 items-center justify-center text-gray-400">
+              <div className="flex flex-1 items-center justify-center text-gray-400 dark:text-gray-500">
                 Select or create a project to get started.
               </div>
             )}

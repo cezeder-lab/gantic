@@ -162,14 +162,14 @@ function TaskDetailPanelContent({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
-      <div className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col border-l border-gray-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <div className="fixed right-0 top-0 z-50 flex h-full w-[420px] flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 px-5 py-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
             {projectName}
           </span>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
           >
             ✕
           </button>
@@ -185,11 +185,11 @@ function TaskDetailPanelContent({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
               }}
-              className="min-w-0 flex-1 rounded px-1 py-1 text-lg font-semibold text-gray-800 outline-none focus:bg-gray-50 focus:ring-1 focus:ring-blue-300"
+              className="min-w-0 flex-1 rounded px-1 py-1 text-lg font-semibold text-gray-800 dark:text-gray-100 outline-none focus:bg-gray-50 dark:focus:bg-gray-800 focus:ring-1 focus:ring-blue-300"
             />
           </div>
 
-          <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 pl-5 text-sm text-gray-500">
+          <div className="mb-6 flex flex-wrap gap-x-6 gap-y-1 pl-5 text-sm text-gray-500 dark:text-gray-400">
             <span>
               {formatShortDate(start)} → {formatShortDate(end)}
             </span>
@@ -198,22 +198,22 @@ function TaskDetailPanelContent({
 
           {dependencies.length > 0 && (
             <div className="mb-6">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Depends on
               </h3>
               <ul className="space-y-1.5">
                 {dependencies.map((dep) => (
                   <li
                     key={dep.id}
-                    className="group flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-1.5"
+                    className="group flex items-center gap-2 rounded-md border border-gray-100 dark:border-gray-800 px-2.5 py-1.5"
                   >
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dep.color }} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{dep.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{dep.name}</span>
                     <select
                       value={dependencyTypes[dep.id] ?? 'FS'}
                       onChange={(e) => onSetDependencyType(dep.id, e.target.value as DependencyType)}
                       title="Dependency type"
-                      className="shrink-0 rounded border border-gray-200 bg-transparent px-1.5 py-0.5 text-xs text-gray-600 outline-none focus:ring-1 focus:ring-blue-300"
+                      className="shrink-0 rounded border border-gray-200 dark:border-gray-700 bg-transparent px-1.5 py-0.5 text-xs text-gray-600 dark:text-gray-300 outline-none focus:ring-1 focus:ring-blue-300"
                     >
                       {DEPENDENCY_TYPES.map((dt) => (
                         <option key={dt.value} value={dt.value}>
@@ -223,7 +223,7 @@ function TaskDetailPanelContent({
                     </select>
                     <button
                       onClick={() => onRemoveDependency(dep.id)}
-                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 group-hover:flex"
+                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200 group-hover:flex"
                       title="Remove dependency"
                     >
                       ✕
@@ -235,7 +235,7 @@ function TaskDetailPanelContent({
           )}
 
           <div className="mb-6">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               Description
             </h3>
             <textarea
@@ -244,19 +244,19 @@ function TaskDetailPanelContent({
               onBlur={() => onUpdate({ description })}
               placeholder="Add notes, context or acceptance criteria…"
               rows={6}
-              className="w-full resize-none rounded-md border border-gray-200 p-3 text-sm text-gray-700 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+              className="w-full resize-none rounded-md border border-gray-200 dark:border-gray-700 p-3 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
             />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Attachments {attachments.length > 0 && `(${attachments.length})`}
               </h3>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
               >
                 {uploading ? 'Uploading…' : '+ Add file'}
               </button>
@@ -270,7 +270,7 @@ function TaskDetailPanelContent({
             </div>
 
             {attachments.length === 0 ? (
-              <p className="rounded-md border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+              <p className="rounded-md border border-dashed border-gray-200 dark:border-gray-700 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
                 No files attached yet
               </p>
             ) : (
@@ -278,7 +278,7 @@ function TaskDetailPanelContent({
                 {attachments.map((a) => (
                   <li
                     key={a.id}
-                    className="group flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-2 hover:bg-gray-50"
+                    className="group flex items-center gap-2 rounded-md border border-gray-100 dark:border-gray-800 px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     {thumbnails[a.id] ? (
                       <img
@@ -293,15 +293,15 @@ function TaskDetailPanelContent({
                     )}
                     <button
                       onClick={() => handleDownload(a)}
-                      className="min-w-0 flex-1 truncate text-left text-sm text-gray-700 hover:underline"
+                      className="min-w-0 flex-1 truncate text-left text-sm text-gray-700 dark:text-gray-200 hover:underline"
                       title="Download"
                     >
                       {a.name}
                     </button>
-                    <span className="shrink-0 text-xs text-gray-400">{formatFileSize(a.size)}</span>
+                    <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{formatFileSize(a.size)}</span>
                     <button
                       onClick={() => onRemoveAttachment(a.id)}
-                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 group-hover:flex"
+                      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200 group-hover:flex"
                       title="Remove"
                     >
                       ✕

@@ -31,14 +31,14 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
   const rowHeight = getRowHeight(compactView);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden border-r border-gray-200 bg-white" style={{ width: tableWidth }}>
+    <div className="flex h-full flex-col overflow-hidden border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ width: tableWidth }}>
       <div
         ref={ref}
         onScroll={(e) => onScroll(e.currentTarget.scrollTop)}
         className="flex-1 overflow-y-auto overflow-x-auto"
       >
         <div
-          className="sticky top-0 z-20 flex border-b border-gray-200 bg-[#f7f8fa] text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+          className="sticky top-0 z-20 flex border-b border-gray-200 dark:border-gray-700 bg-[#f7f8fa] dark:bg-gray-800 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
           style={{ height: HEADER_HEIGHT }}
         >
           <HeaderCell width={TABLE_COL_WIDTHS.name} align="left" className="pl-3">
@@ -59,7 +59,7 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
         </div>
 
         {rows.length === 0 && taskFilterQuery && (
-          <p className="px-3 py-6 text-center text-sm text-gray-400">No tasks match "{taskFilterQuery}"</p>
+          <p className="px-3 py-6 text-center text-sm text-gray-400 dark:text-gray-500">No tasks match "{taskFilterQuery}"</p>
         )}
 
         {rows.map(({ task, depth, hasChildren }) => (
@@ -75,7 +75,7 @@ export const TaskTable = forwardRef<HTMLDivElement, Props>(function TaskTable({ 
 
         <button
           onClick={() => addTask({ parentId: null })}
-          className="flex w-full items-center gap-2 px-3 text-left text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+          className="flex w-full items-center gap-2 px-3 text-left text-sm text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300"
           style={{ height: rowHeight }}
         >
           <span className="text-base leading-none">+</span> Add task

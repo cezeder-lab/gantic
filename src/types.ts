@@ -3,7 +3,6 @@ export type TaskSortMode = 'manual' | 'dueDate' | 'assignee';
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type DependencyType = 'FS' | 'SS' | 'FF';
-export type Language = 'en' | 'fr';
 
 export interface Project {
   id: string;

@@ -1,7 +1,24 @@
 @import "tailwindcss";
 
+/* Enables the `dark:` variant based on a `.dark` class on <html>, toggled
+   from the darkMode setting, instead of only following the OS preference.
+   Scoped to screen media so a print/PDF export always renders in light
+   colors regardless of the current theme (and never clobbers the inline
+   task-bar/status colors that print output relies on). */
+@custom-variant dark {
+  @media screen {
+    &:where(.dark, .dark *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
 }
 
 html, body, #root {
@@ -32,6 +49,12 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #a8abb6;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f4552;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #545b6b;
 }
 
 input, textarea {

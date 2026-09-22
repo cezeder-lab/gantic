@@ -298,7 +298,7 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, rowHeight, isSum
       )}
 
       {currentWidth < 56 && (
-        <span className="pointer-events-none ml-1.5 whitespace-nowrap text-[11px] text-gray-600">
+        <span className="pointer-events-none ml-1.5 whitespace-nowrap text-[11px] text-gray-600 dark:text-gray-300">
           {task.name}
         </span>
       )}
