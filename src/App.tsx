@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { ProjectSidebar } from './components/Sidebar/ProjectSidebar';
 import { Toolbar } from './components/Toolbar';
@@ -24,6 +24,20 @@ const BACKUP_INTERVAL_MS = 15 * 60 * 1000;
 const NOTIFICATION_CHECK_MS = 5 * 60 * 1000;
 
 function App() {
+  // The store's storage adapter reads asynchronously (a real file, via IPC,
+  // when running in Electron) instead of synchronous localStorage, so the
+  // very first render can briefly precede hydration — gate rendering on it
+  // to avoid ever flashing the seeded demo project before real data loads.
+  // Hydration starts the instant the store module is imported, independently
+  // of this component's lifecycle, so it can finish before this effect even
+  // subscribes — re-check on mount rather than trusting the render-time read.
+  const [hydrated, setHydrated] = useState(() => useGanticStore.persist.hasHydrated());
+  useEffect(() => {
+    const unsubscribe = useGanticStore.persist.onFinishHydration(() => setHydrated(true));
+    setHydrated(useGanticStore.persist.hasHydrated());
+    return unsubscribe;
+  }, []);
+
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const exportRootRef = useRef<HTMLDivElement>(null);
@@ -217,6 +231,10 @@ function App() {
     a.download = `${project?.name ?? 'gantic'}.png`;
     a.click();
   };
+
+  if (!hydrated) {
+    return <div className="flex h-screen w-screen items-center justify-center bg-white text-sm text-gray-400">Loading…</div>;
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-gray-800">

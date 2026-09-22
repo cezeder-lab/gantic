@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGanticStore } from '../../store/useGanticStore';
 import type { ColumnVisibility, Language } from '../../types';
 import { formatShortDate } from '../../lib/dates';
 import { useT } from '../../lib/i18n';
 import { listBackups } from '../../lib/backup';
 import { requestNotificationPermission, notificationsSupported } from '../../lib/notifications';
+import { getElectronAPI } from '../../lib/electronBridge';
 
 const COLUMN_LABELS: { key: keyof ColumnVisibility; label: string }[] = [
   { key: 'start', label: 'Start date' },
@@ -36,8 +37,32 @@ export function SettingsPanel() {
 
   const [newHoliday, setNewHoliday] = useState('');
   const [newField, setNewField] = useState('');
+  const [dataFolder, setDataFolder] = useState<string | null>(null);
+  const [choosingFolder, setChoosingFolder] = useState(false);
+  const electronAPI = getElectronAPI();
+
+  useEffect(() => {
+    if (settingsOpen && electronAPI) {
+      electronAPI.getDataFolder().then(setDataFolder);
+    }
+  }, [settingsOpen, electronAPI]);
 
   if (!settingsOpen) return null;
+
+  async function handleChooseDataFolder() {
+    if (!electronAPI) return;
+    setChoosingFolder(true);
+    try {
+      const chosen = await electronAPI.chooseDataFolder();
+      if (chosen) {
+        // The main process already copied existing data into the new folder —
+        // reload so the store rehydrates from it instead of the old one.
+        window.location.reload();
+      }
+    } finally {
+      setChoosingFolder(false);
+    }
+  }
 
   async function handleToggleNotifications() {
     if (!notificationsEnabled) {
@@ -72,6 +97,28 @@ export function SettingsPanel() {
         </div>
 
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          {electronAPI && (
+            <section className="mb-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Dossier de sauvegarde des projets
+              </h3>
+              <p className="mb-2 truncate rounded-md border border-gray-100 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-600" title={dataFolder ?? ''}>
+                {dataFolder ?? '…'}
+              </p>
+              <p className="mb-3 text-xs text-gray-400">
+                Tes projets et pièces jointes sont sauvegardés ici. Change de dossier pour les stocker
+                ailleurs (clé USB, Dropbox, OneDrive…) — les données existantes seront copiées automatiquement.
+              </p>
+              <button
+                onClick={handleChooseDataFolder}
+                disabled={choosingFolder}
+                className="rounded-md border border-gray-200 px-2.5 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {choosingFolder ? 'Copie en cours…' : 'Choisir un dossier…'}
+              </button>
+            </section>
+          )}
+
           <section className="mb-6">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
               {t('language')}

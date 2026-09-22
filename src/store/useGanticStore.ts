@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
   Attachment,
   ColumnVisibility,
@@ -22,6 +22,7 @@ import { getDescendantIds, nextOrder, siblingsOf } from '../lib/taskTree';
 import { deleteAttachmentBlobs } from '../lib/attachmentsDb';
 import { cascadeDependents } from '../lib/cascade';
 import { TABLE_WIDTH, NOTES_PANEL_HEIGHT, NOTES_PANEL_MIN_HEIGHT, NOTES_PANEL_MAX_HEIGHT } from '../lib/constants';
+import { appStorage } from '../lib/electronStorage';
 
 interface HistorySnapshot {
   projects: Project[];
@@ -909,6 +910,7 @@ export const useGanticStore = create<GanticState>()(
     {
       name: 'gantic-storage',
       version: 4,
+      storage: createJSONStorage(() => appStorage),
       // Undo history, viewport-dependent zoom, and transient UI state are
       // ephemeral — no need to persist them across reloads.
       partialize: (state) => {
