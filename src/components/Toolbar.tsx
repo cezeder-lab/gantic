@@ -4,6 +4,8 @@ import { useGanticStore } from '../store/useGanticStore';
 import type { TaskSortMode, ZoomLevel } from '../types';
 import { exportProjectToJSON, downloadProjectJSON, parseProjectImport } from '../lib/projectIO';
 import { parseTasksCsv } from '../lib/csvImport';
+import { WorkspaceBar } from './Workspace/WorkspaceBar';
+import { useCanEdit } from '../lib/sync/useProjectRole';
 
 const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
   { value: 'day', label: 'Day' },
@@ -48,6 +50,7 @@ export function Toolbar({
   const notesPanelOpen = useGanticStore((s) => s.notesPanelOpen);
   const toggleNotesPanel = useGanticStore((s) => s.toggleNotesPanel);
 
+  const canEdit = useCanEdit(project?.id);
   const [teamOpen, setTeamOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +107,7 @@ export function Toolbar({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
           <IconBtn title="Undo (Ctrl+Z)" onClick={undo} disabled={past.length === 0}>
             ↶
           </IconBtn>
@@ -262,7 +265,7 @@ export function Toolbar({
 
           <button
             onClick={() => addTask({ parentId: null })}
-            disabled={!project}
+            disabled={!project || !canEdit}
             className="rounded-md bg-[#4f7cff] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3d68f0] disabled:opacity-40"
           >
             + Add task
@@ -306,6 +309,10 @@ export function Toolbar({
             <span className="h-2 w-2 rounded-full border-2 border-current" />
             Critical path
           </button>
+
+          <div className="ml-auto">
+            <WorkspaceBar projectId={project.id} />
+          </div>
         </div>
       )}
     </div>

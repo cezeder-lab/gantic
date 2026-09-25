@@ -2,10 +2,13 @@ import { useGanticStore } from '../../store/useGanticStore';
 import { TASK_STATUSES, TASK_PRIORITIES } from '../../types';
 import type { TaskPriority, TaskStatus } from '../../types';
 
+// A stable fallback: a fresh `[]` from a store selector re-renders forever.
+const EMPTY: string[] = [];
+
 export function BulkActionBar() {
   const selectedTaskIds = useGanticStore((s) => s.selectedTaskIds);
   const activeProjectId = useGanticStore((s) => s.activeProjectId);
-  const members = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.members ?? []);
+  const members = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.members ?? EMPTY);
   const bulkSetAssignee = useGanticStore((s) => s.bulkSetAssignee);
   const bulkSetStatus = useGanticStore((s) => s.bulkSetStatus);
   const bulkSetPriority = useGanticStore((s) => s.bulkSetPriority);

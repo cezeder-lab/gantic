@@ -3,6 +3,7 @@ import { useGanticStore } from '../../store/useGanticStore';
 import { PROJECT_COLORS } from '../../types';
 import clsx from 'clsx';
 import { NewProjectDialog } from './NewProjectDialog';
+import { Greeting } from '../Greeting';
 
 export function ProjectSidebar() {
   const projects = useGanticStore((s) => s.projects);
@@ -19,6 +20,7 @@ export function ProjectSidebar() {
   const toggleArchiveProject = useGanticStore((s) => s.toggleArchiveProject);
   const showArchived = useGanticStore((s) => s.showArchived);
   const toggleShowArchived = useGanticStore((s) => s.toggleShowArchived);
+  const workspaceName = useGanticStore((s) => (s.workspace ? (s.workspaceName ?? 'Team workspace') : null));
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -48,6 +50,11 @@ export function ProjectSidebar() {
         </div>
         <span className="text-[15px] font-semibold text-gray-800 dark:text-gray-100">Gantic</span>
       </div>
+      {workspaceName && (
+        <p className="-mt-2 mb-2 truncate px-4 text-xs text-gray-400 dark:text-gray-500" title="Team workspace">
+          👥 {workspaceName}
+        </p>
+      )}
 
       <div className="px-2 pb-2">
         <button
@@ -220,6 +227,10 @@ export function ProjectSidebar() {
           Show archived
         </label>
       )}
+
+      <div className="border-t border-gray-100 dark:border-gray-800">
+        <Greeting />
+      </div>
     </div>
   );
 }

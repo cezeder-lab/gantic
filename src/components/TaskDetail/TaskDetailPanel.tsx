@@ -5,6 +5,7 @@ import { saveAttachmentBlob, getAttachmentBlob } from '../../lib/attachmentsDb';
 import { formatShortDate } from '../../lib/dates';
 import { DEPENDENCY_TYPES } from '../../types';
 import type { Attachment, DependencyType, Task } from '../../types';
+import { useCanEdit } from '../../lib/sync/useProjectRole';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -35,6 +36,7 @@ export function TaskDetailPanel() {
   const removeAttachment = useGanticStore((s) => s.removeAttachment);
   const removeDependency = useGanticStore((s) => s.removeDependency);
   const setDependencyType = useGanticStore((s) => s.setDependencyType);
+  const canEdit = useCanEdit(task?.projectId);
 
   if (!task) return null;
 
@@ -52,6 +54,7 @@ export function TaskDetailPanel() {
       dependencies={dependencyTasks}
       dependencyTypes={task.dependencyTypes}
       projectName={project?.name ?? ''}
+      readOnly={!canEdit || task.locked}
       onClose={closeTaskDetails}
       onUpdate={(patch) => updateTask(task.id, patch)}
       onAddAttachment={(a) => addAttachment(task.id, a)}
@@ -74,6 +77,7 @@ interface ContentProps {
   dependencies: Task[];
   dependencyTypes: Record<string, DependencyType>;
   projectName: string;
+  readOnly: boolean;
   onClose: () => void;
   onUpdate: (patch: { name?: string; description?: string }) => void;
   onAddAttachment: (a: Attachment) => void;
@@ -83,8 +87,8 @@ interface ContentProps {
 }
 
 function TaskDetailPanelContent({
-  name: initialName,
-  description: initialDescription,
+  name,
+  description,
   start,
   end,
   assignee,
@@ -93,6 +97,7 @@ function TaskDetailPanelContent({
   dependencies,
   dependencyTypes,
   projectName,
+  readOnly,
   onClose,
   onUpdate,
   onAddAttachment,
@@ -100,8 +105,10 @@ function TaskDetailPanelContent({
   onRemoveDependency,
   onSetDependencyType,
 }: ContentProps) {
-  const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
+  // Drafts only exist while a field is being edited, so teammates' changes
+  // show up live otherwise.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,9 +186,14 @@ function TaskDetailPanelContent({
           <div className="mb-4 flex items-start gap-2">
             <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => onUpdate({ name })}
+              value={nameDraft ?? name}
+              readOnly={readOnly}
+              onFocus={() => !readOnly && setNameDraft(name)}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => {
+                if (nameDraft !== null && nameDraft !== name) onUpdate({ name: nameDraft });
+                setNameDraft(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
               }}
@@ -210,6 +222,7 @@ function TaskDetailPanelContent({
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dep.color }} />
                     <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{dep.name}</span>
                     <select
+                      disabled={readOnly}
                       value={dependencyTypes[dep.id] ?? 'FS'}
                       onChange={(e) => onSetDependencyType(dep.id, e.target.value as DependencyType)}
                       title="Dependency type"
@@ -223,6 +236,7 @@ function TaskDetailPanelContent({
                     </select>
                     <button
                       onClick={() => onRemoveDependency(dep.id)}
+                      hidden={readOnly}
                       className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200 group-hover:flex"
                       title="Remove dependency"
                     >
@@ -239,9 +253,16 @@ function TaskDetailPanelContent({
               Description
             </h3>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onBlur={() => onUpdate({ description })}
+              value={descriptionDraft ?? description}
+              readOnly={readOnly}
+              onFocus={() => !readOnly && setDescriptionDraft(description)}
+              onChange={(e) => setDescriptionDraft(e.target.value)}
+              onBlur={() => {
+                if (descriptionDraft !== null && descriptionDraft !== description) {
+                  onUpdate({ description: descriptionDraft });
+                }
+                setDescriptionDraft(null);
+              }}
               placeholder="Add notes, context or acceptance criteria…"
               rows={6}
               className="w-full resize-none rounded-md border border-gray-200 dark:border-gray-700 p-3 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
@@ -256,6 +277,7 @@ function TaskDetailPanelContent({
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
+                hidden={readOnly}
                 className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
               >
                 {uploading ? 'Uploading…' : '+ Add file'}
@@ -301,6 +323,7 @@ function TaskDetailPanelContent({
                     <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{formatFileSize(a.size)}</span>
                     <button
                       onClick={() => onRemoveAttachment(a.id)}
+                      hidden={readOnly}
                       className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-200 group-hover:flex"
                       title="Remove"
                     >

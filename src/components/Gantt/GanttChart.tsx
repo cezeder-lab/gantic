@@ -14,6 +14,9 @@ interface Props {
   scrollLeftRef: React.MutableRefObject<number>;
 }
 
+// A stable fallback: a fresh `[]` from a store selector re-renders forever.
+const EMPTY: string[] = [];
+
 export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   { onScroll },
   ref,
@@ -25,7 +28,7 @@ export const GanttChart = forwardRef<HTMLDivElement, Props>(function GanttChart(
   const taskSort = useGanticStore((s) => s.taskSort);
   const taskFilterQuery = useGanticStore((s) => s.taskFilterQuery);
   const showCriticalPath = useGanticStore((s) => s.showCriticalPath);
-  const holidays = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.holidays ?? []);
+  const holidays = useGanticStore((s) => s.projects.find((p) => p.id === activeProjectId)?.holidays ?? EMPTY);
   const addDependency = useGanticStore((s) => s.addDependency);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
   const compactView = useGanticStore((s) => s.compactView);

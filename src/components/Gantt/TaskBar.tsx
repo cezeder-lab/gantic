@@ -5,6 +5,7 @@ import { TASK_PRIORITIES } from '../../types';
 import { useGanticStore } from '../../store/useGanticStore';
 import { addDays, diffDays, formatShortDate } from '../../lib/dates';
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu';
+import { useCanEdit } from '../../lib/sync/useProjectRole';
 
 type DragMode = 'move' | 'resize-start' | 'resize-end' | 'progress' | null;
 
@@ -28,7 +29,8 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, rowHeight, isSum
   const openTaskDetails = useGanticStore((s) => s.openTaskDetails);
   const setSelectedTask = useGanticStore((s) => s.setSelectedTask);
   const selectedTaskId = useGanticStore((s) => s.selectedTaskId);
-  const locked = task.locked;
+  const canEdit = useCanEdit(task.projectId);
+  const locked = task.locked || !canEdit;
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const dragRef = useRef<{
@@ -57,8 +59,12 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, rowHeight, isSum
 
   const contextMenuItems: ContextMenuItem[] = [
     { label: 'Open details', onClick: () => openTaskDetails(task.id) },
-    { label: 'Duplicate', onClick: () => duplicateTask(task.id) },
-    { label: locked ? 'Unlock' : 'Lock', onClick: () => updateTask(task.id, { locked: !locked }) },
+    { label: 'Duplicate', onClick: () => duplicateTask(task.id), disabled: !canEdit },
+    {
+      label: task.locked ? 'Unlock' : 'Lock',
+      onClick: () => updateTask(task.id, { locked: !task.locked }),
+      disabled: !canEdit,
+    },
     { label: 'Delete', onClick: () => deleteTask(task.id), danger: true, disabled: locked },
   ];
 
@@ -230,7 +236,7 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, rowHeight, isSum
             title={`Priority: ${task.priority}`}
           />
         )}
-        {locked && (
+        {task.locked && (
           <span className="pointer-events-none absolute left-0.5 top-0.5 text-[9px] leading-none">🔒</span>
         )}
         <span className="pointer-events-none absolute inset-0 flex items-center px-2 text-[11px] font-semibold mix-blend-normal">
@@ -266,7 +272,7 @@ export function TaskBar({ task, x, width, pxPerDay, rangeStart, rowHeight, isSum
       </div>
 
       {/* link handles for dependency creation — siblings of the clipped bar so they aren't cut off at the edges */}
-      {onLinkStart && (
+      {onLinkStart && canEdit && (
         <>
           <div
             data-link-handle

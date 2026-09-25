@@ -11,6 +11,14 @@ export interface NoteTab {
   color: string; // key into NOTE_TAB_COLORS
 }
 
+export type Role = 'admin' | 'editor' | 'viewer';
+
+export const ROLES: { value: Role; label: string; description: string }[] = [
+  { value: 'admin', label: 'Admin', description: 'Edit everything, manage access, delete the project' },
+  { value: 'editor', label: 'Editor', description: 'Edit tasks, notes and project settings' },
+  { value: 'viewer', label: 'Viewer', description: 'Read-only' },
+];
+
 export interface Project {
   id: string;
   name: string;
@@ -23,6 +31,10 @@ export interface Project {
   noteTabs: NoteTab[];
   customFieldDefs: string[];
   useWorkingDays: boolean;
+  // Team workspace only: per-user roles keyed by user id (email), and the
+  // role anyone not listed gets.
+  roles?: Record<string, Role>;
+  defaultRole?: 'editor' | 'viewer';
 }
 
 // Pastel, Post-it-style tab colors. `bg`/`text` are the light-mode swatch;

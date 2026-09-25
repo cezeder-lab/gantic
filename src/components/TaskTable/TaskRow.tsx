@@ -7,6 +7,7 @@ import { TABLE_COL_WIDTHS, getRowHeight } from '../../lib/constants';
 import { addDays, diffDays, todayISO } from '../../lib/dates';
 import { addWorkingDays, formatDuration } from '../../lib/duration';
 import { ContextMenu, type ContextMenuItem } from '../ContextMenu';
+import { useCanEdit } from '../../lib/sync/useProjectRole';
 
 interface Props {
   task: Task;
@@ -36,7 +37,10 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
   const members = project?.members ?? [];
   const customFieldDefs = project?.customFieldDefs ?? [];
 
-  const [name, setName] = useState(task.name);
+  const canEdit = useCanEdit(task.projectId);
+  // Only holds a value while the name is being edited, so a teammate's rename
+  // shows up immediately the rest of the time.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [dragOver, setDragOver] = useState<'before' | 'after' | null>(null);
@@ -44,7 +48,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
   const duration = diffDays(task.start, task.end);
   const rowHeight = getRowHeight(compactView);
   const isOverdue = !task.isMilestone && task.status !== 'done' && task.end < todayISO();
-  const locked = task.locked;
+  const locked = task.locked || !canEdit;
 
   function handleRowClick(e: React.MouseEvent) {
     if (e.shiftKey && lastClickedTaskId) {
@@ -68,8 +72,12 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
     { label: 'Add subtask', onClick: () => addTask({ parentId: task.id }), disabled: locked },
     { label: 'Indent', onClick: () => indentTask(task.id), disabled: locked },
     { label: 'Outdent', onClick: () => outdentTask(task.id), disabled: locked || !task.parentId },
-    { label: 'Duplicate', onClick: () => duplicateTask(task.id) },
-    { label: locked ? 'Unlock' : 'Lock', onClick: () => updateTask(task.id, { locked: !locked }) },
+    { label: 'Duplicate', onClick: () => duplicateTask(task.id), disabled: !canEdit },
+    {
+      label: task.locked ? 'Unlock' : 'Lock',
+      onClick: () => updateTask(task.id, { locked: !task.locked }),
+      disabled: !canEdit,
+    },
     { label: 'Delete', onClick: () => deleteTask(task.id), danger: true, disabled: locked },
   ];
 
@@ -164,7 +172,7 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setColorPickerOpen((v) => !v);
+              if (!locked) setColorPickerOpen((v) => !v);
             }}
             className="block h-2.5 w-2.5 rounded-full ring-offset-1 hover:ring-2 hover:ring-gray-300 dark:hover:ring-gray-600"
             style={{ backgroundColor: task.color }}
@@ -195,16 +203,20 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
             </>
           )}
         </span>
-        {locked && (
+        {task.locked && (
           <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500" title="Locked">
             🔒
           </span>
         )}
         <input
-          value={name}
+          value={nameDraft ?? task.name}
           disabled={locked}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => updateTask(task.id, { name })}
+          onFocus={() => setNameDraft(task.name)}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={() => {
+            if (nameDraft !== null && nameDraft !== task.name) updateTask(task.id, { name: nameDraft });
+            setNameDraft(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
           }}
@@ -235,14 +247,15 @@ export function TaskRow({ task, depth, hasChildren, visibleColumns, visibleTaskI
         <IconButton title="Outdent" onClick={() => outdentTask(task.id)} disabled={locked || !task.parentId}>
           ←
         </IconButton>
-        <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)}>
+        <IconButton title="Duplicate" onClick={() => duplicateTask(task.id)} disabled={!canEdit}>
           ⧉
         </IconButton>
         <IconButton
-          title={locked ? 'Unlock' : 'Lock'}
-          onClick={() => updateTask(task.id, { locked: !locked })}
+          title={task.locked ? 'Unlock' : 'Lock'}
+          onClick={() => updateTask(task.id, { locked: !task.locked })}
+          disabled={!canEdit}
         >
-          {locked ? '🔓' : '🔒'}
+          {task.locked ? '🔓' : '🔒'}
         </IconButton>
         <IconButton title="Delete" onClick={() => deleteTask(task.id)} disabled={locked}>
           ✕

@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useGanticStore } from '../store/useGanticStore';
 import { NOTE_TAB_COLORS } from '../types';
 import type { NoteTab } from '../types';
 import { ContextMenu } from './ContextMenu';
 import type { ContextMenuItem } from './ContextMenu';
+import { useCanEdit } from '../lib/sync/useProjectRole';
 
 const FONT_SIZES: { value: string; label: string }[] = [
   { value: '2', label: 'Small' },
@@ -17,8 +18,43 @@ const FONT_SIZES: { value: string; label: string }[] = [
  * that would be misread as a tag the first time it's rendered as HTML. */
 function escapeIfPlainText(value: string): string {
   return /<[a-z][\s\S]*>/i.test(value)
-    ? value
+    ? sanitizeNoteHtml(value)
     : value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Notes can come from anyone who can write to the shared workspace folder, so
+// only the formatting the editor itself produces is allowed through — no
+// scripts, event handlers, links, images or styles.
+const ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'DIV', 'P', 'SPAN', 'FONT', 'UL', 'OL', 'LI']);
+const ALLOWED_FONT_ATTRS = new Set(['color', 'size']);
+
+function sanitizeNoteHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  const clean = (node: Element) => {
+    for (const child of Array.from(node.children)) {
+      if (!ALLOWED_TAGS.has(child.tagName)) {
+        // Keep the text of unknown elements, drop the element itself.
+        if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') child.remove();
+        else child.replaceWith(...Array.from(child.childNodes));
+        continue;
+      }
+      for (const attr of Array.from(child.attributes)) {
+        const keep =
+          child.tagName === 'FONT' &&
+          ALLOWED_FONT_ATTRS.has(attr.name) &&
+          /^[#a-zA-Z0-9]{1,20}$/.test(attr.value);
+        if (!keep) child.removeAttribute(attr.name);
+      }
+      clean(child);
+    }
+  };
+  // Unwrapping can surface new children, so run until nothing changes.
+  let before = '';
+  while (before !== doc.body.innerHTML) {
+    before = doc.body.innerHTML;
+    clean(doc.body);
+  }
+  return doc.body.innerHTML;
 }
 
 function colorOf(value: string) {
@@ -65,6 +101,7 @@ function NotesPanelContent({
   const [colorPickerTabId, setColorPickerTabId] = useState<string | null>(null);
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
 
+  const canEdit = useCanEdit(projectId);
   const activeTab = noteTabs.find((t) => t.id === activeTabIdByProject[projectId]) ?? noteTabs[0];
   const activeColor = colorOf(activeTab.color);
 
@@ -90,6 +127,7 @@ function NotesPanelContent({
   }
 
   function startRename(tab: NoteTab) {
+    if (!canEdit) return;
     setRenamingTabId(tab.id);
     setRenameValue(tab.title);
     setTabContextMenu(null);
@@ -104,6 +142,7 @@ function NotesPanelContent({
     ? [
         {
           label: 'Rename',
+          disabled: !canEdit,
           onClick: () => {
             const tab = noteTabs.find((t) => t.id === tabContextMenu.tabId);
             if (tab) startRename(tab);
@@ -112,7 +151,7 @@ function NotesPanelContent({
         {
           label: 'Delete tab',
           danger: true,
-          disabled: noteTabs.length <= 1,
+          disabled: !canEdit || noteTabs.length <= 1,
           onClick: () => deleteNoteTab(projectId, tabContextMenu.tabId),
         },
       ]
@@ -194,7 +233,7 @@ function NotesPanelContent({
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      setColorPickerTabId(colorPickerTabId === tab.id ? null : tab.id);
+                      if (canEdit) setColorPickerTabId(colorPickerTabId === tab.id ? null : tab.id);
                     }}
                     title="Change color"
                     className="h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10"
@@ -231,6 +270,7 @@ function NotesPanelContent({
         })}
         <button
           onClick={() => addNoteTab(projectId)}
+          hidden={!canEdit}
           title="New note tab"
           className="mb-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
         >
@@ -252,6 +292,7 @@ function NotesPanelContent({
         projectId={projectId}
         tabId={activeTab.id}
         content={activeTab.content}
+        readOnly={!canEdit}
         colorBg={activeColor.bg}
         colorBgDark={activeColor.bgDark}
       />
@@ -262,28 +303,43 @@ function NotesPanelContent({
 function NoteTabEditor({
   projectId,
   tabId,
-  content: initialContent,
+  content,
+  readOnly,
   colorBg,
   colorBgDark,
 }: {
   projectId: string;
   tabId: string;
   content: string;
+  readOnly: boolean;
   colorBg: string;
   colorBgDark: string;
 }) {
   const setNoteTabContent = useGanticStore((s) => s.setNoteTabContent);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
-  const [isEmpty, setIsEmpty] = useState(!initialContent.trim());
+  const [isEmpty, setIsEmpty] = useState(!content.trim());
   // Frozen at mount: the editor is uncontrolled after that (all edits happen
   // directly in the DOM). Deriving dangerouslySetInnerHTML from the live
   // content prop instead would make React re-apply innerHTML on every commit
   // (store update -> re-render), wiping the live selection mid-formatting.
-  const initialHtmlRef = useRef(escapeIfPlainText(initialContent));
+  const initialHtmlRef = useRef(escapeIfPlainText(content));
+
+  // A teammate edited this note: show it, unless you're typing in it right
+  // now (your version is saved when you click away, and the later save wins).
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el || document.activeElement === el) return;
+    const html = escapeIfPlainText(content);
+    if (el.innerHTML !== html) {
+      el.innerHTML = html;
+      setIsEmpty(!(el.textContent ?? '').trim());
+    }
+  }, [content]);
 
   function commit() {
-    if (editorRef.current) setNoteTabContent(projectId, tabId, editorRef.current.innerHTML);
+    if (readOnly || !editorRef.current) return;
+    if (editorRef.current.innerHTML !== content) setNoteTabContent(projectId, tabId, editorRef.current.innerHTML);
   }
 
   function saveSelection() {
@@ -315,6 +371,7 @@ function NoteTabEditor({
   }
 
   function handleEditorClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (readOnly) return;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
@@ -335,7 +392,10 @@ function NoteTabEditor({
 
   return (
     <>
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 dark:border-gray-800 px-3 py-1.5">
+      <div
+        hidden={readOnly}
+        className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 dark:border-gray-800 px-3 py-1.5"
+      >
         <ToolbarButton title="Bold" onClick={() => exec('bold')}>
           <b>B</b>
         </ToolbarButton>
@@ -400,7 +460,7 @@ function NoteTabEditor({
         )}
         <div
           ref={editorRef}
-          contentEditable
+          contentEditable={!readOnly}
           suppressContentEditableWarning
           onInput={handleInput}
           onBlur={commit}

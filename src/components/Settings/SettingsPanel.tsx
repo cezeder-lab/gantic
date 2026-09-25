@@ -5,6 +5,8 @@ import { formatShortDate } from '../../lib/dates';
 import { listBackups } from '../../lib/backup';
 import { requestNotificationPermission, notificationsSupported } from '../../lib/notifications';
 import { getElectronAPI } from '../../lib/electronBridge';
+import { WorkspaceSettings } from '../Workspace/WorkspaceSettings';
+import { useCanEdit } from '../../lib/sync/useProjectRole';
 
 const UPDATE_STATUS_LABEL: Record<string, string> = {
   checking: 'Checking for updates…',
@@ -44,6 +46,10 @@ export function SettingsPanel() {
   const notificationsEnabled = useGanticStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useGanticStore((s) => s.setNotificationsEnabled);
   const restoreProjectsAndTasks = useGanticStore((s) => s.restoreProjectsAndTasks);
+  const workspace = useGanticStore((s) => s.workspace);
+  const canEditProject = useCanEdit(activeProject?.id);
+  const displayName = useGanticStore((s) => s.displayName);
+  const setDisplayName = useGanticStore((s) => s.setDisplayName);
 
   const [newHoliday, setNewHoliday] = useState('');
   const [newField, setNewField] = useState('');
@@ -124,7 +130,9 @@ export function SettingsPanel() {
         </div>
 
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
-          {electronAPI && (
+          <WorkspaceSettings />
+
+          {electronAPI && !workspace && (
             <section className="mb-6">
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Project data folder
@@ -188,6 +196,17 @@ export function SettingsPanel() {
               />
               Dark mode
             </label>
+            {!workspace && (
+              <label className="mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                Your name
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Used in the greeting"
+                  className="min-w-0 flex-1 rounded border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300"
+                />
+              </label>
+            )}
           </section>
 
           <section className="mb-6">
@@ -244,6 +263,8 @@ export function SettingsPanel() {
             </div>
           </section>
 
+          {/* Project settings are shared data: read-only for viewers. */}
+          <fieldset disabled={!canEditProject} className="disabled:opacity-60">
           {activeProject && (
             <section className="mb-6">
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
@@ -363,7 +384,11 @@ export function SettingsPanel() {
               </div>
             </section>
           )}
+          </fieldset>
 
+          {/* In a team workspace the shared activity log is the history;
+              restoring a local snapshot would overwrite everyone's work. */}
+          {!workspace && (
           <section>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
               Local backups
@@ -392,6 +417,7 @@ export function SettingsPanel() {
               </ul>
             )}
           </section>
+          )}
         </div>
       </div>
     </>

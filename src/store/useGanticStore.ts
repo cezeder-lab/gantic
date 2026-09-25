@@ -7,6 +7,7 @@ import type {
   NoteTab,
   Project,
   ProjectTemplate,
+  Role,
   Task,
   TaskPriority,
   TaskSortMode,
@@ -24,6 +25,7 @@ import { cascadeDependents } from '../lib/cascade';
 import { TABLE_WIDTH, NOTES_PANEL_HEIGHT, NOTES_PANEL_MIN_HEIGHT, NOTES_PANEL_MAX_HEIGHT } from '../lib/constants';
 import { appStorage } from '../lib/electronStorage';
 import type { ElectronUpdateEvent } from '../lib/electronBridge';
+import type { PresenceEntry, SyncStatus, WorkspaceConfig } from '../lib/sync/types';
 
 interface HistorySnapshot {
   projects: Project[];
@@ -66,6 +68,24 @@ interface GanticState {
   notesPanelOpen: boolean;
   notesPanelHeight: number;
   updateStatus: ElectronUpdateEvent | null;
+  displayName: string;
+
+  // Team workspace (shared folder sync)
+  workspace: WorkspaceConfig | null;
+  workspaceName: string | null;
+  localSnapshot: HistorySnapshot | null; // this computer's own projects, parked while in a workspace
+  unsentSyncLines: string[]; // log entries not yet written to the shared folder
+  syncStatus: SyncStatus;
+  syncMessage: string | null;
+  syncReady: boolean;
+  presence: PresenceEntry[];
+  activityOpen: boolean;
+  accessProjectId: string | null;
+  setDisplayName: (name: string) => void;
+  setActivityOpen: (open: boolean) => void;
+  setAccessProjectId: (id: string | null) => void;
+  setProjectRole: (projectId: string, userId: string, role: Role | null) => void;
+  setProjectDefaultRole: (projectId: string, role: 'editor' | 'viewer') => void;
 
   // Projects
   createProject: (name: string) => string;
@@ -284,6 +304,39 @@ export const useGanticStore = create<GanticState>()(
       notesPanelHeight: NOTES_PANEL_HEIGHT,
       updateStatus: null,
       activeNoteTabId: {},
+      displayName: '',
+      workspace: null,
+      workspaceName: null,
+      localSnapshot: null,
+      unsentSyncLines: [],
+      syncStatus: 'off',
+      syncMessage: null,
+      syncReady: false,
+      presence: [],
+      activityOpen: false,
+      accessProjectId: null,
+
+      setDisplayName: (name) => set({ displayName: name }),
+      setActivityOpen: (open) => set({ activityOpen: open }),
+      setAccessProjectId: (id) => set({ accessProjectId: id }),
+
+      setProjectRole: (projectId, userId, role) => {
+        recordHistory(get, set);
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const roles = { ...(p.roles ?? {}) };
+            if (role) roles[userId] = role;
+            else delete roles[userId];
+            return { ...p, roles };
+          }),
+        }));
+      },
+
+      setProjectDefaultRole: (projectId, role) => {
+        recordHistory(get, set);
+        set((s) => ({ projects: s.projects.map((p) => (p.id === projectId ? { ...p, defaultRole: role } : p)) }));
+      },
 
       createProject: (name) => {
         recordHistory(get, set);
@@ -1005,6 +1058,13 @@ export const useGanticStore = create<GanticState>()(
           toast: _toast,
           notesPanelOpen: _notesPanelOpen,
           updateStatus: _updateStatus,
+          syncStatus: _syncStatus,
+          syncMessage: _syncMessage,
+          syncReady: _syncReady,
+          presence: _presence,
+          activityOpen: _activityOpen,
+          accessProjectId: _accessProjectId,
+          workspaceName: _workspaceName,
           ...rest
         } = state;
         return rest;

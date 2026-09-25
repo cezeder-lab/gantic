@@ -20,6 +20,9 @@ import { dayWidth, diffDays, todayISO } from './lib/dates';
 import { pushBackup } from './lib/backup';
 import { notify } from './lib/notifications';
 import { getElectronAPI } from './lib/electronBridge';
+import { syncEngine } from './lib/sync/engine';
+import { ActivityPanel } from './components/Workspace/ActivityPanel';
+import { AccessDialog } from './components/Workspace/AccessDialog';
 import type { ZoomLevel } from './types';
 
 const BACKUP_INTERVAL_MS = 15 * 60 * 1000;
@@ -77,6 +80,18 @@ function App() {
   const notesPanelOpen = useGanticStore((s) => s.notesPanelOpen);
   const setNotesPanelOpen = useGanticStore((s) => s.setNotesPanelOpen);
   const setUpdateStatus = useGanticStore((s) => s.setUpdateStatus);
+  const activityOpen = useGanticStore((s) => s.activityOpen);
+  const setActivityOpen = useGanticStore((s) => s.setActivityOpen);
+  const accessProjectId = useGanticStore((s) => s.accessProjectId);
+  const setAccessProjectId = useGanticStore((s) => s.setAccessProjectId);
+
+  // Reconnect to the team workspace this computer was in last time. Joining
+  // and leaving later start/stop the engine themselves.
+  useEffect(() => {
+    if (!hydrated) return;
+    const workspace = useGanticStore.getState().workspace;
+    if (workspace) void syncEngine.start(workspace);
+  }, [hydrated]);
 
   useEffect(() => {
     const electronAPI = getElectronAPI();
@@ -93,6 +108,8 @@ function App() {
 
       if (e.key === 'Escape') {
         if (globalSearchOpen) setGlobalSearchOpen(false);
+        else if (accessProjectId) setAccessProjectId(null);
+        else if (activityOpen) setActivityOpen(false);
         else if (helpOpen) setHelpOpen(false);
         else if (settingsOpen) setSettingsOpen(false);
         else if (notesPanelOpen) setNotesPanelOpen(false);
@@ -163,6 +180,10 @@ function App() {
     setSettingsOpen,
     notesPanelOpen,
     setNotesPanelOpen,
+    accessProjectId,
+    setAccessProjectId,
+    activityOpen,
+    setActivityOpen,
   ]);
 
   // Periodic local backup snapshot (desktop-friendly, works in-browser too).
@@ -290,6 +311,8 @@ function App() {
       <SettingsPanel />
       <HelpPanel />
       <GlobalSearch />
+      <ActivityPanel />
+      <AccessDialog />
       <Toast />
       <UpdateBanner />
     </div>

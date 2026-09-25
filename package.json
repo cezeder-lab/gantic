@@ -1,8 +1,8 @@
 {
-  "name": "gantic",
+  "name": "gantic-measurement-team",
   "private": true,
-  "version": "1.1.1",
-  "description": "Instagantt-style Gantt chart editor with multi-project support",
+  "version": "1.0.0-beta",
+  "description": "Gantic, Measurement Team edition: shared team workspace with live sync, roles and an activity log",
   "author": "Gantic",
   "type": "module",
   "main": "electron/main.cjs",
@@ -43,7 +43,7 @@
     "wait-on": "^9.1.0"
   },
   "build": {
-    "appId": "com.gantic.app",
+    "appId": "com.gantic.measurementteam",
     "productName": "Gantic",
     "files": [
       "dist/**/*",
@@ -64,6 +64,13 @@
         "nsis",
         "portable"
       ]
+    },
+    "nsis": {
+      "shortcutName": "Gantic (Measurement Team)",
+      "artifactName": "Gantic-MeasurementTeam-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Gantic-MeasurementTeam-${version}-portable.${ext}"
     },
     "mac": {
       "icon": "build/icon.png",
